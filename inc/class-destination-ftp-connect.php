@@ -136,31 +136,56 @@ class BackWPup_Destination_Ftp_Connect implements BackWPup_Destination_Connect_I
             );
         }
 
-        // Default connection type.
-        $resource = ftp_connect($this->host, $this->port, $this->timeout);
-
-        // Can be connected over ssl?
+        // Open only one connection: explicit SSL if requested, otherwise plain FTP.
         if ($this->use_ssl) {
             $resource = ftp_ssl_connect($this->host, $this->port, $this->timeout);
+        } else {
+            $resource = ftp_connect($this->host, $this->port, $this->timeout);
         }
 
         if (!$resource) {
             throw new \BackWPup_Destination_Connect_Exception(
-                'Something went wrong during FTP connection. Seems not possible to connect to the service.'
+                sprintf(
+                    /* translators: %s: FTP host and port. */
+                    __('Cannot connect to FTP server %s. Please check the FTP host, port and SSL settings.', 'backwpup'),
+                    $this->host . ':' . $this->port
+                )
             );
         }
 
         $this->resource = $resource;
 
         if (!$this->login()) {
+            ftp_close($this->resource);
+            $this->resource = null;
+
             throw new BackWPup_Destination_Connect_Exception(
-                'Something went wrong during FTP connection. Seems not possible to connect to the service.'
+                sprintf(
+                    /* translators: %s: FTP host and port. */
+                    __('FTP login failed on %s. Please check the FTP user name and password.', 'backwpup'),
+                    $this->host . ':' . $this->port
+                )
             );
         }
 
+        // Use the same passive mode settings as the backup job.
+        if ($this->passive) {
+            ftp_set_option($this->resource, FTP_USEPASVADDRESS, (bool) apply_filters('backwpup_ftp_use_passive_address', true));
+        }
         ftp_pasv($this->resource, $this->passive);
 
         return $this;
+    }
+
+    /**
+     * Close the connection.
+     */
+    public function disconnect(): void
+    {
+        if ($this->resource) {
+            ftp_close($this->resource);
+        }
+        $this->resource = null;
     }
 
     /**
@@ -213,11 +238,11 @@ class BackWPup_Destination_Ftp_Connect implements BackWPup_Destination_Connect_I
             $response = ftp_raw($this->resource, 'PASS ' . $this->pass);
         }
 
-        // Since the ftp_raw returns an array, we check for false value.
-        if (is_array($response) && substr(trim($response[0]), 0, 3) > 400) {
-            $response = false;
+        // Since the ftp_raw returns an array, check the reply code of the server.
+        if (is_array($response)) {
+            $response = isset($response[0]) && substr(trim((string) $response[0]), 0, 3) <= 400;
         }
 
-        return $response;
+        return (bool) $response;
     }
 }

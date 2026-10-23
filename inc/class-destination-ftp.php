@@ -180,7 +180,7 @@ class BackWPup_Destination_Ftp extends BackWPup_Destinations
         BackWPup_Option::update(
             $id,
             'ftpmaxbackups',
-            !empty($_POST['ftpmaxbackups']) ? absint($_POST['ftpmaxbackups']) : 0
+            isset($_POST['ftpmaxbackups']) && is_numeric($_POST['ftpmaxbackups']) ? absint($_POST['ftpmaxbackups']) : $this->option_defaults()['ftpmaxbackups']
         );
 
         if (function_exists('ftp_ssl_connect')) {
@@ -198,36 +198,50 @@ class BackWPup_Destination_Ftp extends BackWPup_Destinations
         [$jobid, $dest] = explode('_', $jobdest);
 
         $job_options = (object) BackWPup_Option::get_job($jobid);
-        $service = new BackWPup_Destination_Ftp_Connect(
-            $job_options->ftphost,
-            $job_options->ftpuser,
-            BackWPup_Encryption::decrypt($job_options->ftppass),
-            $job_options->ftphostport,
-            $job_options->ftptimeout,
-            $job_options->ftpssl,
-            $job_options->ftppasv
-        );
+        $service = null;
 
         try {
+            $service = new BackWPup_Destination_Ftp_Connect(
+                $job_options->ftphost,
+                $job_options->ftpuser,
+                BackWPup_Encryption::decrypt($job_options->ftppass),
+                $job_options->ftphostport,
+                $job_options->ftptimeout,
+                $job_options->ftpssl,
+                $job_options->ftppasv
+            );
+
             $resource = $service
                 ->connect()
                 ->resource()
             ;
 
             // Delete file.
-            ftp_delete($resource, $backupfile);
+            if (!@ftp_delete($resource, $backupfile)) {
+                throw new \RuntimeException(
+                    sprintf(
+                        __('Cannot delete "%s" on FTP server!', 'backwpup'),
+                        $backupfile
+                    )
+                );
+            }
 
             // Update file list of existing files.
-            foreach ($files as $key => $file) {
-                if (is_array($file) && $file['file'] == $backupfile) {
-                    unset($files[$key]);
+            if (is_array($files)) {
+                foreach ($files as $key => $file) {
+                    if (is_array($file) && $file['file'] == $backupfile) {
+                        unset($files[$key]);
+                    }
                 }
+                set_site_transient('backwpup_' . strtolower($jobdest), $files, YEAR_IN_SECONDS);
             }
-        } catch (\RuntimeException $e) {
+        } catch (\Exception $e) {
             BackWPup_Admin::message('FTP: ' . $e->getMessage(), true);
         }
 
-        set_site_transient('backwpup_' . strtolower($jobdest), $files, YEAR_IN_SECONDS);
+        if ($service) {
+            $service->disconnect();
+        }
     }
 
     /**
@@ -275,6 +289,15 @@ class BackWPup_Destination_Ftp extends BackWPup_Destinations
                 );
             }
 
+            if (!$ftp_conn_id) {
+                throw new Exception(
+                    sprintf(
+                        __('Cannot connect to FTP server: %s', 'backwpup'),
+                        BackWPup_Option::get($jobid, 'ftphost') . ':' . BackWPup_Option::get($jobid, 'ftphostport')
+                    )
+                );
+            }
+
             //FTP Login
             if ($loginok = @ftp_login(
                 $ftp_conn_id,
@@ -282,13 +305,13 @@ class BackWPup_Destination_Ftp extends BackWPup_Destinations
                 BackWPup_Encryption::decrypt(BackWPup_Option::get($jobid, 'ftppass'))
             )) {
             } else { //if PHP ftp login don't work use raw login
-                $return = ftp_raw($ftp_conn_id, 'USER ' . BackWPup_Option::get($jobid, 'ftpuser'));
-                if (substr(trim($return[0]), 0, 3) <= 400) {
-                    $return = ftp_raw(
+                $return = (array) ftp_raw($ftp_conn_id, 'USER ' . BackWPup_Option::get($jobid, 'ftpuser'));
+                if (isset($return[0]) && substr(trim($return[0]), 0, 3) <= 400) {
+                    $return = (array) ftp_raw(
                         $ftp_conn_id,
                         'PASS ' . BackWPup_Encryption::decrypt(BackWPup_Option::get($jobid, 'ftppass'))
                     );
-                    if (substr(trim($return[0]), 0, 3) <= 400) {
+                    if (isset($return[0]) && substr(trim($return[0]), 0, 3) <= 400) {
                         $loginok = true;
                     }
                 }
@@ -488,27 +511,40 @@ class BackWPup_Destination_Ftp extends BackWPup_Destinations
                 E_USER_NOTICE
             );
         } else { //if PHP ftp login don't work use raw login
-            $return = ftp_raw($ftp_conn_id, 'USER ' . $job_object->job['ftpuser']);
-            $job_object->log(sprintf(__('FTP server reply: %s', 'backwpup'), $return[0]), E_USER_NOTICE);
-            if (substr(trim($return[0]), 0, 3) <= 400) {
+            $return = (array) ftp_raw($ftp_conn_id, 'USER ' . $job_object->job['ftpuser']);
+            $reply = (string) ($return[0] ?? '');
+            $job_object->log(sprintf(__('FTP server reply: %s', 'backwpup'), $reply), E_USER_NOTICE);
+            if ($reply !== '' && substr(trim($reply), 0, 3) <= 400) {
                 $job_object->log(
                     sprintf(__('FTP client command: %s', 'backwpup'), 'PASS *******'),
                     E_USER_NOTICE
                 );
-                $return = ftp_raw(
+                $return = (array) ftp_raw(
                     $ftp_conn_id,
                     'PASS ' . BackWPup_Encryption::decrypt($job_object->job['ftppass'])
                 );
-                if (substr(trim($return[0]), 0, 3) <= 400) {
-                    $job_object->log(sprintf(__('FTP server reply: %s', 'backwpup'), $return[0]), E_USER_NOTICE);
+                $reply = (string) ($return[0] ?? '');
+                if ($reply !== '' && substr(trim($reply), 0, 3) <= 400) {
+                    $job_object->log(sprintf(__('FTP server reply: %s', 'backwpup'), $reply), E_USER_NOTICE);
                     $loginok = true;
                 } else {
-                    $job_object->log(sprintf(__('FTP server reply: %s', 'backwpup'), $return[0]), E_USER_ERROR);
+                    $job_object->log(sprintf(__('FTP server reply: %s', 'backwpup'), $reply), E_USER_WARNING);
                 }
             }
         }
 
         if (!$loginok) {
+            // Make the failure visible in the log; before, the step silently failed.
+            $job_object->log(
+                sprintf(
+                    __('FTP login failed for user "%1$s" on %2$s. Please check the FTP user name and password.', 'backwpup'),
+                    $job_object->job['ftpuser'],
+                    $job_object->job['ftphost'] . ':' . $job_object->job['ftphostport']
+                ),
+                E_USER_ERROR
+            );
+            ftp_close($ftp_conn_id);
+
             return false;
         }
 
@@ -605,22 +641,40 @@ class BackWPup_Destination_Ftp extends BackWPup_Destinations
             if ($fp = fopen($job_object->backup_folder . $job_object->backup_file, 'rb')) {
                 //go to actual file pos
                 fseek($fp, $job_object->substeps_done);
-                $ret = ftp_nb_fput(
-                    $ftp_conn_id,
-                    $current_ftp_dir . $job_object->backup_file,
-                    $fp,
-                    FTP_BINARY,
-                    $job_object->substeps_done
+                $warning = '';
+                $ret = $this->call_ftp_operation(
+                    static function () use ($ftp_conn_id, $current_ftp_dir, $job_object, $fp) {
+                        return ftp_nb_fput(
+                            $ftp_conn_id,
+                            $current_ftp_dir . $job_object->backup_file,
+                            $fp,
+                            FTP_BINARY,
+                            $job_object->substeps_done
+                        );
+                    },
+                    $warning
                 );
 
                 while ($ret == FTP_MOREDATA) {
                     $job_object->substeps_done = ftell($fp);
                     $job_object->update_working_data();
                     $job_object->do_restart_time();
-                    $ret = ftp_nb_continue($ftp_conn_id);
+                    $ret = $this->call_ftp_operation(
+                        static function () use ($ftp_conn_id) {
+                            return ftp_nb_continue($ftp_conn_id);
+                        },
+                        $warning
+                    );
                 }
                 if ($ret != FTP_FINISHED) {
-                    $job_object->log(__('Cannot transfer backup to FTP server!', 'backwpup'), E_USER_ERROR);
+                    fclose($fp);
+                    $job_object->log(
+                        sprintf(
+                            __('Cannot transfer backup to FTP server! FTP server response: %s', 'backwpup'),
+                            $this->ftp_failure_reason($warning)
+                        ),
+                        E_USER_ERROR
+                    );
 
                     return false;
                 }
@@ -730,5 +784,48 @@ class BackWPup_Destination_Ftp extends BackWPup_Destinations
         );
 
         return $response;
+    }
+
+    /**
+     * Execute an FTP operation while capturing the native PHP warning.
+     *
+     * The warning of the ftp_* functions contains the reply of the FTP server, which is the only
+     * useful information when a transfer fails.
+     *
+     * @param callable $operation The FTP operation
+     * @param string   $warning   Receives the captured warning message
+     *
+     * @return int The FTP return code
+     */
+    private function call_ftp_operation(callable $operation, string &$warning): int
+    {
+        set_error_handler(
+            static function (int $error_number, string $error_message) use (&$warning): bool {
+                $warning = $error_message;
+
+                return true;
+            }
+        );
+
+        try {
+            return (int) $operation();
+        } finally {
+            restore_error_handler();
+        }
+    }
+
+    /**
+     * Build a readable failure reason from a captured FTP warning.
+     *
+     * @param string $warning The captured PHP warning
+     */
+    private function ftp_failure_reason(string $warning): string
+    {
+        $warning = trim($warning);
+        if ($warning === '') {
+            return __('Failed to upload file.', 'backwpup');
+        }
+
+        return (string) (preg_replace('/^ftp_[a-z_]+\(\):\s*/i', '', $warning) ?: $warning);
     }
 }
