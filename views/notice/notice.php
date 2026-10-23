@@ -25,7 +25,7 @@
                     id="<?php echo esc_attr($bind->id); ?>_dismiss"
                     href="<?php echo esc_url($bind->dismissActionUrl); ?>"
                 >
-                    <?php echo esc_html_e('Don\'t show again', 'backwpup'); ?>
+                    <?php esc_html_e('Don\'t show again', 'backwpup'); ?>
                 </a>
             <?php } ?>
         </p>

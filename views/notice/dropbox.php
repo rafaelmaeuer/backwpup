@@ -6,11 +6,11 @@
 <ul>
     <?php foreach ($bind->jobs as $id => $name) { ?>
         <li>
-            <a href="<?php echo wp_nonce_url(add_query_arg([
+            <a href="<?php echo esc_url(wp_nonce_url(add_query_arg([
                 'page' => 'backwpupeditjob',
                 'tab' => 'dest-dropbox',
                 'jobid' => $id,
-            ], network_admin_url('admin.php')), 'edit-job'); ?>">
+            ], network_admin_url('admin.php')), 'edit-job')); ?>">
                 <?php echo esc_html($name); ?>
             </a>
         </li>
