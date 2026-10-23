@@ -31,7 +31,7 @@ final class JsonRequest extends RequestDecorator
         $data = json_decode((string) $this->request->getBody(), true);
 
         if (json_last_error() !== JSON_ERROR_NONE) {
-            throw CouldNotDecodeJsonData::withError(json_last_error_msg());
+            throw CouldNotDecodeJsonData::withError(esc_html(json_last_error_msg()));
         }
 
         return $data;
@@ -44,11 +44,13 @@ final class JsonRequest extends RequestDecorator
      *
      * @throws CouldNotEncodeJsonData
      */
-    public function withJsonData($data, StreamFactoryInterface $streamFactory): self
-    {
+    public function withJsonData(
+        $data,
+        StreamFactoryInterface $streamFactory
+    ): self {
         $data = json_encode($data);
         if ($data === false) {
-            throw CouldNotEncodeJsonData::withError(json_last_error_msg());
+            throw CouldNotEncodeJsonData::withError(esc_html(json_last_error_msg()));
         }
 
         return $this

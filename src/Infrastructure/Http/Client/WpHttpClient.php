@@ -6,13 +6,13 @@ namespace Inpsyde\BackWPup\Infrastructure\Http\Client;
 
 use Inpsyde\BackWPup\Infrastructure\Http\Client\Exception\NetworkException;
 use Inpsyde\BackWPup\Infrastructure\Http\Client\Exception\RequestException;
+use Symfony\Component\OptionsResolver\Exception\NoSuchOptionException;
+use Symfony\Component\OptionsResolver\OptionsResolver;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamFactoryInterface;
-use Symfony\Component\OptionsResolver\Exception\NoSuchOptionException;
-use Symfony\Component\OptionsResolver\OptionsResolver;
 
 /**
  * A wrapper of WP_Http.
@@ -121,10 +121,10 @@ final class WpHttpClient implements ClientInterface
         if (is_wp_error($response)) {
             if ($response->get_error_code() === 'http_request_not_executed') {
                 // Not a network error, so throw RequestException
-                throw new RequestException($response->get_error_message(), $request);
+                throw new RequestException(esc_html($response->get_error_message()), $request); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- RequestInterface is stored on the exception, not output.
             }
 
-            throw new NetworkException($response->get_error_message(), $request);
+            throw new NetworkException(esc_html($response->get_error_message()), $request); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- RequestInterface is stored on the exception, not output.
         }
 
         return $this->prepareResponse($response);
@@ -280,11 +280,11 @@ final class WpHttpClient implements ClientInterface
         $uri = (string) $request->getUri();
 
         if (empty($uri)) {
-            throw new RequestException(__('URI must not be empty.', 'backwpup'), $request);
+            throw new RequestException(esc_html__('URI must not be empty.', 'backwpup'), $request); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- RequestInterface is stored on the exception, not output.
         }
 
         if (wp_http_validate_url($uri) === false) {
-            throw new RequestException(__('The given URI is invalid.', 'backwpup'), $request);
+            throw new RequestException(esc_html__('The given URI is invalid.', 'backwpup'), $request); // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- RequestInterface is stored on the exception, not output.
         }
     }
 }
