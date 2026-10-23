@@ -3,6 +3,7 @@
 use Inpsyde\BackWPup\Infrastructure\Restore\Restore;
 use Inpsyde\BackWPup\Notice;
 use Inpsyde\BackWPup\Notice\DropboxNotice;
+use Inpsyde\BackWPup\Notice\MissingCurlNotice;
 use Inpsyde\BackWPup\Notice\NoticeView;
 use Inpsyde\BackWPup\Notice\PhpNotice;
 use Inpsyde\BackWPup\Notice\WordPressNotice;
@@ -240,6 +241,15 @@ final class BackWPup_Admin
 			false // Not dismissible.
 		);
 		$dropbox_notice->init( DropboxNotice::TYPE_ADMIN );
+
+		// Show notice on BackWPup pages if PHP cURL is missing.
+		if ( ! class_exists( MissingCurlNotice::class ) ) {
+			require_once __DIR__ . '/Notice/MissingCurlNotice.php';
+		}
+		$missing_curl_notice = new MissingCurlNotice(
+			new NoticeView( MissingCurlNotice::ID )
+		);
+		$missing_curl_notice->init( MissingCurlNotice::TYPE_ADMIN );
 
 		$evaluate_notice = new EvaluateNotice(
 			new NoticeView( EvaluateNotice::ID )
