@@ -338,6 +338,79 @@ class BackWPup_Cron
     }
 
     /**
+     * Pre-authenticate the configured WordPress user for external link (runext) job starts.
+     *
+     * Plugins restricting wp-cron.php to a specific user would otherwise kill the request on init,
+     * before cron_active() runs on wp_loaded. The runext nonce is validated before the user is set.
+     */
+    public static function preauth_for_external_run(): void
+    {
+        $run_type = isset($_GET['backwpup_run']) ? sanitize_key($_GET['backwpup_run']) : '';
+        if ($run_type !== 'runext') {
+            return;
+        }
+
+        $authentication = get_site_option('backwpup_cfg_authentication', ['method' => '', 'user_id' => 0]);
+        if (empty($authentication['user_id']) || $authentication['method'] !== 'user') {
+            return;
+        }
+
+        $authkey = (string) get_site_option('backwpup_cfg_jobrunauthkey');
+        $job_id = isset($_GET['jobid']) ? absint($_GET['jobid']) : 0;
+        $provided_nonce = isset($_GET['_nonce']) ? sanitize_text_field(wp_unslash($_GET['_nonce'])) : '';
+        if ($authkey === '' || $provided_nonce === '') {
+            return;
+        }
+
+        if (!hash_equals(md5($authkey . $job_id), $provided_nonce) && !hash_equals($authkey, $provided_nonce)) {
+            return;
+        }
+
+        wp_set_current_user((int) $authentication['user_id']);
+    }
+
+    /**
+     * Inject the configured user's auth cookie into WordPress's own wp-cron loopback request,
+     * so sites restricting wp-cron.php to a user still run scheduled BackWPup jobs.
+     *
+     * @param array $cron_request
+     *
+     * @return array
+     */
+    public static function authenticate_cron_request($cron_request)
+    {
+        if (!is_array($cron_request) || !empty($cron_request['args']['cookies'])) {
+            return $cron_request;
+        }
+
+        $authentication = get_site_option('backwpup_cfg_authentication', ['method' => '', 'user_id' => 0]);
+        if (empty($authentication['user_id']) || $authentication['method'] !== 'user') {
+            return $cron_request;
+        }
+
+        $user_id = (int) $authentication['user_id'];
+        $transient_key = 'backwpup_cookies_' . $user_id;
+        $cookies = get_site_transient($transient_key);
+        if ($cookies === false || !is_array($cookies)) {
+            $cookies = [];
+            $user = get_userdata($user_id);
+            if (!empty($user) && $user->exists()) {
+                $expiration = time() + (2 * DAY_IN_SECONDS);
+                $manager = WP_Session_Tokens::get_instance($user_id);
+                $token = $manager->create($expiration);
+                $cookies[LOGGED_IN_COOKIE] = wp_generate_auth_cookie($user_id, $expiration, 'logged_in', $token);
+            }
+            set_site_transient($transient_key, $cookies, 2 * DAY_IN_SECONDS);
+        }
+
+        foreach ($cookies as $name => $value) {
+            $cron_request['args']['cookies'][] = new WP_Http_Cookie(['name' => $name, 'value' => $value]);
+        }
+
+        return $cron_request;
+    }
+
+    /**
      * Get the timestamp (UTC) of the next cron execution, the cron expression is interpreted in the site timezone.
      *
      * @param string $cronstring cron (* * * * *)
