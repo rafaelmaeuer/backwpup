@@ -46,7 +46,9 @@ final class BackWPup_Destination_S3_Downloader implements BackWPup_Destination_D
      */
     public function __destruct()
     {
-        fclose($this->localHandle);
+        if (is_resource($this->localHandle)) {
+            fclose($this->localHandle);
+        }
     }
 
     /**

@@ -136,7 +136,7 @@ class BackWPup_Destination_RSC extends BackWPup_Destinations
         }
         BackWPup_Option::update($id, 'rscdir', $_POST['rscdir']);
 
-        BackWPup_Option::update($id, 'rscmaxbackups', !empty($_POST['rscmaxbackups']) ? absint($_POST['rscmaxbackups']) : 0);
+        BackWPup_Option::update($id, 'rscmaxbackups', isset($_POST['rscmaxbackups']) && is_numeric($_POST['rscmaxbackups']) ? absint($_POST['rscmaxbackups']) : $this->option_defaults()['rscmaxbackups']);
         BackWPup_Option::update($id, 'rscsyncnodelete', !empty($_POST['rscsyncnodelete']));
 
         if (!empty($_POST['rscusername']) && !empty($_POST['rscapikey']) && !empty($_POST['newrsccontainer'])) {

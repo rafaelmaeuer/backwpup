@@ -98,7 +98,7 @@ class BackWPup_Destination_Folder extends BackWPup_Destinations
             $backup_dir = self::getDefaultBackupsDirectory();
         }
 
-        $max_backups = isset($_POST['maxbackups']) ? absint($_POST['maxbackups']) : 0;
+        $max_backups = isset($_POST['maxbackups']) && is_numeric($_POST['maxbackups']) ? absint($_POST['maxbackups']) : $this->option_defaults()['maxbackups'];
 
         BackWPup_Option::update($jobid, 'backupdir', $backup_dir);
         BackWPup_Option::update($jobid, 'maxbackups', $max_backups);
@@ -119,10 +119,21 @@ class BackWPup_Destination_Folder extends BackWPup_Destinations
         $backup_dir = esc_attr(BackWPup_Option::get((int) $jobid, 'backupdir'));
         $backup_dir = BackWPup_File::get_absolute_path($backup_dir);
 
-        $backupfile = realpath(trailingslashit($backup_dir) . basename($backupfile));
+        $requested_file = basename($backupfile);
+        $backupfile = realpath(trailingslashit($backup_dir) . $requested_file);
 
-        if ($backupfile && is_writeable($backupfile) && !is_dir($backupfile) && !is_link($backupfile)) {
+        if ($backupfile && is_writable($backupfile) && !is_dir($backupfile) && !is_link($backupfile)) {
             unlink($backupfile);
+            self::delete_sidecar_file($backupfile);
+        } else {
+            BackWPup_Admin::message(
+                sprintf(
+                    // translators: %s: backup file path.
+                    __('Could not delete backup archive "%s", check permissions!', 'backwpup'),
+                    esc_html($requested_file)
+                ),
+                true
+            );
         }
     }
 
@@ -240,11 +251,13 @@ class BackWPup_Destination_Folder extends BackWPup_Destinations
                 ksort($backupfilelist);
                 $numdeltefiles = 0;
 
-                while ($file = array_shift($backupfilelist)) {
+                while (!empty($backupfilelist)) {
+                    $file = array_shift($backupfilelist);
                     if (count($backupfilelist) < $job_object->job['maxbackups']) {
                         break;
                     }
                     unlink($file->getPathname());
+                    self::delete_sidecar_file($file->getPathname());
 
                     foreach ($files as $key => $filedata) {
                         if ($filedata['file'] === $file->getPathname()) {
@@ -302,5 +315,19 @@ class BackWPup_Destination_Folder extends BackWPup_Destinations
         $content_path = trailingslashit(BackWPup_Path_Fixer::slashify((string) WP_CONTENT_DIR));
 
         return str_replace($content_path, '', $backups_dir);
+    }
+
+    /**
+     * Delete the Tar/TarGz duplicate-entry sidecar file (".bwuidx") of a deleted archive, if any.
+     *
+     * The sidecar handling is provided by BackWPup_Create_Archive; it is only called when available.
+     *
+     * @param string $archive_file Full path of the deleted backup archive
+     */
+    private static function delete_sidecar_file(string $archive_file): void
+    {
+        if (method_exists(BackWPup_Create_Archive::class, 'delete_sidecar_for')) {
+            BackWPup_Create_Archive::delete_sidecar_for($archive_file);
+        }
     }
 }

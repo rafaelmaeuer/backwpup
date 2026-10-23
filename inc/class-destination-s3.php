@@ -620,7 +620,7 @@ class BackWPup_Destination_S3 extends BackWPup_Destinations
         BackWPup_Option::update(
             $jobid,
             's3maxbackups',
-            !empty($_POST['s3maxbackups']) ? absint($_POST['s3maxbackups']) : 0
+            isset($_POST['s3maxbackups']) && is_numeric($_POST['s3maxbackups']) ? absint($_POST['s3maxbackups']) : $this->option_defaults()['s3maxbackups']
         );
         BackWPup_Option::update($jobid, 's3syncnodelete', !empty($_POST['s3syncnodelete']));
 

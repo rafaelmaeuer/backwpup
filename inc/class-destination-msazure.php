@@ -162,7 +162,7 @@ class BackWPup_Destination_MSAzure extends BackWPup_Destinations
         BackWPup_Option::update(
             $jobid,
             self::MSAZUREMAXBACKUPS,
-            filter_input(INPUT_POST, self::MSAZUREMAXBACKUPS, FILTER_SANITIZE_NUMBER_INT) ?: 0
+            isset($_POST[self::MSAZUREMAXBACKUPS]) && is_numeric($_POST[self::MSAZUREMAXBACKUPS]) ? absint($_POST[self::MSAZUREMAXBACKUPS]) : $this->option_defaults()[self::MSAZUREMAXBACKUPS]
         );
 
         BackWPup_Option::update(
@@ -480,13 +480,13 @@ class BackWPup_Destination_MSAzure extends BackWPup_Destinations
         }
 
         if (empty($args[MsAzureDestinationConfiguration::MSAZURE_ACCNAME])) {
-            _e('Missing account name!', 'backwpup');
+            esc_html_e('Missing account name!', 'backwpup');
         } elseif (empty($args[MsAzureDestinationConfiguration::MSAZURE_KEY])) {
-            _e('Missing access key!', 'backwpup');
+            esc_html_e('Missing access key!', 'backwpup');
         } elseif (!empty($error)) {
             echo esc_html($error);
         } elseif (empty($containers)) {
-            _e('No container found!', 'backwpup');
+            esc_html_e('No container found!', 'backwpup');
         }
         echo '</span>';
 
@@ -529,10 +529,11 @@ class BackWPup_Destination_MSAzure extends BackWPup_Destinations
                 self::NEWMSAZURECONTAINER
             );
 
+            // Cast: filter_input() returns null for missing fields which would cause a TypeError.
             return MsAzureDestinationConfiguration::withNewContainer(
-                $msazureaccname,
-                $msazurekey,
-                $newmsazurecontainer
+                (string) $msazureaccname,
+                (string) $msazurekey,
+                (string) $newmsazurecontainer
             );
         }
 

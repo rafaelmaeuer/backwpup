@@ -171,8 +171,20 @@ abstract class BackWPup_Destinations
      */
     public function is_backup_owned_by_job(string $file, int $jobid): bool
     {
-        $info = pathinfo($file);
-        $file = basename($file, '.' . $info['extension']);
+        // Only backup archives can belong to a job. This also avoids undefined index warnings
+        // for files without extension.
+        if (!$this->is_backup_archive($file)) {
+            return false;
+        }
+
+        // Strip the complete archive extension (also ".tar.gz", not only ".gz").
+        $file = basename($file);
+        foreach (self::EXTENSIONS as $extension) {
+            if (substr($file, -strlen($extension)) === $extension) {
+                $file = substr($file, 0, -strlen($extension));
+                break;
+            }
+        }
 
         // Try 10-character chunks first for base 32 and most of base 36
         $data = $this->getDecodedHashAndJobId($file, 10);
