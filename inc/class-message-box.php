@@ -82,10 +82,11 @@ class BackWPup_Message_Box
      */
     public function output_box_html()
     {
-        $url = add_query_arg(['backwpup_msg_' . $this->box_id => 1], '//' . $_SERVER['SERVER_NAME'] . $_SERVER['REQUEST_URI']); ?>
-		<div id="backwpup-message-<?php echo $this->box_id; ?>" class="notice" style="padding:0;border:0;position:relative;">
-			<?php echo $this->box_html; ?>
-			<a href="<?php echo $url; ?>" class="dismiss" style="text-decoration:none;position:absolute;top:5px;right:5px;" title="<?php echo __('Dismiss', 'backwpup'); ?>"><span class="dashicons dashicons-dismiss"></span></a>
+        // Build the dismiss URL from the current admin request, never from raw server variables.
+        $url = add_query_arg(['backwpup_msg_' . $this->box_id => 1]); ?>
+		<div id="backwpup-message-<?php echo esc_attr($this->box_id); ?>" class="notice" style="padding:0;border:0;position:relative;">
+			<?php echo wp_kses_post($this->box_html); ?>
+			<a href="<?php echo esc_url($url); ?>" class="dismiss" style="text-decoration:none;position:absolute;top:5px;right:5px;" title="<?php esc_attr_e('Dismiss', 'backwpup'); ?>"><span class="dashicons dashicons-dismiss"></span></a>
 		</div>
 		<?php
     }
