@@ -28,8 +28,14 @@ window.BWU.Restore.Factory = window.BWU.Restore.Factory || {};
 		 * @param successCallback
 		 */
 		function databaseConnection( save, successCallback ) {
+			var nonce = this.nonce;
+			if ( _.isUndefined( nonce ) || nonce === null || nonce === '' ) {
+				var step = document.querySelector( '#restore_step' );
+				nonce = step ? step.getAttribute( 'data-nonce' ) : '';
+				this.nonce = nonce;
+			}
 
-			var db = BWU.Restore.FactoryDatabase( this.url, this.nonce, JSON.stringify( {
+			var db = BWU.Restore.FactoryDatabase( this.url, nonce, JSON.stringify( {
 				dbhost: document.querySelector( '#db_host' ).value.trim(),
 				dbname: document.querySelector( '#db_name' ).value.trim(),
 				dbuser: document.querySelector( '#db_user' ).value.trim(),
@@ -52,9 +58,18 @@ window.BWU.Restore.Factory = window.BWU.Restore.Factory || {};
 		 * Show the Decryption Fields
 		 *
 		 * @param data
+		 * @param error
 		 */
-		function showDecryptField( data ) {
-			this.decrypter.needDecryption( data.state );
+		function showDecryptField( data, error ) {
+			let error_message = {
+				message: '',
+			};
+			if ( error && error.data ) {
+				error_message = JSON.parse( error.data );
+			}
+			if ( data.state || error_message.message === BWU.States.NEED_DECRYPTION_KEY ) {
+				this.decrypter.needDecryption( data.state );
+			}
 		}
 
 		/**
@@ -153,8 +168,9 @@ window.BWU.Restore.Factory = window.BWU.Restore.Factory || {};
 							this.uploader.start();
 						}.bind( this ),
 						UploadProgress: function ( up, file ) {
+							const percent = Number.isFinite(file.percent) ? file.percent : 0;
 							$( '#upload_progress' )
-								.text( backwpupRestoreLocalized.uploadingArchive + file.percent + '%' );
+								.text(`${backwpupRestoreLocalized.uploadingArchive} ${percent}%`);
 						},
 						FileUploaded: function ( up, file ) {
 
@@ -240,9 +256,9 @@ window.BWU.Restore.Factory = window.BWU.Restore.Factory || {};
 					.on( 'click', function ( evt ) {
 						evt.preventDefault();
 
-						this.strategy.save( evt.currentTarget.getAttribute( 'data-strategy' ), function() {
-							loadStep.call( this, evt );
-							} );
+						this.strategy.save( evt.currentTarget.getAttribute( 'data-strategy' ),
+							() => loadStep.call( this, evt )
+						);
 					}.bind( this ) );
 
 				return this;
@@ -254,6 +270,16 @@ window.BWU.Restore.Factory = window.BWU.Restore.Factory || {};
 			 * @returns {BWU} this for chaining
 			 */
 			step3: function () {
+
+				this.strategy.retrieve(function (response) {
+					const strategy = response?.data?.message;
+
+					// Skip DB screen if no DB restore
+					if (strategy === 'files only restore') {
+						BWU.Restore.Functions.loadNextStep(4, this.nonce);
+					}
+				}.bind(this));
+
 				var that = this;
 
 				$( '#db_edit_btn' )
@@ -288,6 +314,16 @@ window.BWU.Restore.Factory = window.BWU.Restore.Factory || {};
 			 * @returns {BWU} this for chaining
 			 */
 			step4: function () {
+
+				this.strategy.retrieve(function (response) {
+					const strategy = response?.data?.message;
+
+					if (strategy === 'files only restore') {
+						BWU.Restore.Functions.loadNextStep(5, this.nonce);
+						return;
+					}
+				}.bind(this));
+
 				$( '#do-migrate' )
 					.on( 'change', function ( evt ) {
 						this.migrate.retrieve( function (response) {
@@ -329,25 +365,74 @@ window.BWU.Restore.Factory = window.BWU.Restore.Factory || {};
 			step5: function () {
 				$( '#start-restore' )
 					.on( 'click', function ( evt ) {
-						var self = this;
 
 						evt.preventDefault();
 
+						var self = this;
+
+						var goToFinish = function () {
+							BWU.Restore.Functions.loadNextStep( 6, self.nonce );
+						};
+
+						var clearFilesSuccess = function () {
+							self.filesrestore.options = self.filesrestore.options || {};
+							self.filesrestore.options.onSuccessCallback = function () {};
+						};
+
+						var setFilesSuccess = function ( cb ) {
+							self.filesrestore.options = self.filesrestore.options || {};
+							self.filesrestore.options.onSuccessCallback = cb;
+						};
+
+						var setDbSuccess = function ( cb ) {
+							self.databaserestore.options = self.databaserestore.options || {};
+							self.databaserestore.options.onSuccessCallback = cb;
+						};
+
 						this.strategy.retrieve( function ( response ) {
 
-							if ( 'complete restore' === response.data.message ) {
-								self.filesrestore
-									.init()
-									.restore();
+							let strategy = response && response.data ? response.data.message : null;
 
+							if (!strategy) {
+								const stepEl = document.querySelector('#restore_step');
+								const hasDb = stepEl?.getAttribute('data-has-db') === '1';
+								const hasFiles = stepEl?.getAttribute('data-has-files') === '1';
+
+								if (hasFiles && !hasDb) strategy = 'files only restore';
+								if (hasDb && !hasFiles) strategy = 'db only restore';
+							}
+
+							if ( 'complete restore' === strategy ) {
+								setDbSuccess( goToFinish );
+								setFilesSuccess( function () {
+									self.databaserestore.init().restore();
+								} );
+
+								self.filesrestore.init().restore();
 								return;
 							}
 
-							if ( 'db only restore' === response.data.message ) {
-								self.databaserestore
-									.init()
-									.restore();
+							if ( 'db only restore' === strategy ) {
+								// ensure that files will dont trigger anything "by accident".
+								clearFilesSuccess();
+								setDbSuccess( goToFinish );
+
+								self.databaserestore.init().restore();
+								return;
 							}
+
+							if ( 'files only restore' === strategy ) {
+								setFilesSuccess( goToFinish );
+
+								self.filesrestore.init().restore();
+								return;
+							}
+
+							BWU.Functions.printMessageError(
+								'Unknown restore strategy. Please restart the restore wizard.',
+								$('#restore_step')
+							);
+
 						} );
 					}.bind( this ) );
 
