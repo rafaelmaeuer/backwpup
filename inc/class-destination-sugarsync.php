@@ -143,7 +143,7 @@ class BackWPup_Destination_SugarSync extends BackWPup_Destinations
         BackWPup_Option::update($jobid, 'sugardir', $_POST['sugardir']);
 
         BackWPup_Option::update($jobid, 'sugarroot', isset($_POST['sugarroot']) ? sanitize_text_field($_POST['sugarroot']) : '');
-        BackWPup_Option::update($jobid, 'sugarmaxbackups', isset($_POST['sugarmaxbackups']) ? absint($_POST['sugarmaxbackups']) : 0);
+        BackWPup_Option::update($jobid, 'sugarmaxbackups', isset($_POST['sugarmaxbackups']) && is_numeric($_POST['sugarmaxbackups']) ? absint($_POST['sugarmaxbackups']) : $this->option_defaults()['sugarmaxbackups']);
     }
 
     public function file_delete(string $jobdest, string $backupfile): void
@@ -238,6 +238,18 @@ class BackWPup_Destination_SugarSync extends BackWPup_Destinations
     }
 
     /**
+     * Converts an UTF-8 string to ISO-8859-1, like utf8_decode() (deprecated since PHP 8.2).
+     */
+    private static function utf8_to_latin1(string $value): string
+    {
+        if (function_exists('mb_convert_encoding')) {
+            return (string) mb_convert_encoding($value, 'ISO-8859-1', 'UTF-8');
+        }
+
+        return utf8_decode($value);
+    }
+
+    /**
      * Checks that the given URL points to the SugarSync API.
      *
      * File references of SugarSync backups are full API URLs. As the access token is sent along
@@ -273,12 +285,16 @@ class BackWPup_Destination_SugarSync extends BackWPup_Destinations
             if (!empty($user->nickname)) {
                 $job_object->log(sprintf(__('Authenticated to SugarSync with nickname %s', 'backwpup'), $user->nickname), E_USER_NOTICE);
             }
+            if (!is_object($user) || !isset($user->quota)) {
+                throw new BackWPup_Destination_SugarSync_API_Exception(__('Could not get the SugarSync user information.', 'backwpup'));
+            }
             $sugarsyncfreespase = (float) $user->quota->limit - (float) $user->quota->usage; //float fixes bug for display of no free space
             if ($job_object->backup_filesize > $sugarsyncfreespase) {
                 $job_object->log(sprintf(_x('Not enough disk space available on SugarSync. Available: %s.', 'Available space on SugarSync', 'backwpup'), size_format($sugarsyncfreespase, 2)), E_USER_ERROR);
                 $job_object->substeps_todo = 1 + $job_object->backup_filesize;
 
-                return true;
+                // The backup was not stored: report the step as failed.
+                return false;
             }
 
             $job_object->log(sprintf(__('%s available at SugarSync', 'backwpup'), size_format($sugarsyncfreespase, 2)), E_USER_NOTICE);
@@ -320,7 +336,7 @@ class BackWPup_Destination_SugarSync extends BackWPup_Destinations
             $getfiles = $sugarsync->getcontents('file');
             if (is_object($getfiles)) {
                 foreach ($getfiles->file as $getfile) {
-                    $getfile->displayName = utf8_decode((string) $getfile->displayName);
+                    $getfile->displayName = self::utf8_to_latin1((string) $getfile->displayName);
                     if ($this->is_backup_archive($getfile->displayName) && $this->is_backup_owned_by_job($getfile->displayName, $job_object->job['jobid']) == true) {
                         $backupfilelist[strtotime((string) $getfile->lastModified)] = (string) $getfile->ref;
                     }
