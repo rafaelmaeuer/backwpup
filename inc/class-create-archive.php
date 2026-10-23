@@ -71,6 +71,33 @@ class BackWPup_Create_Archive
     private $file_count = 0;
 
     /**
+     * Tar/TarGz duplicate-entry index.
+     *
+     * In-memory reconstructed state of every Tar/TarGz entry written so far in this
+     * archive, keyed by name_in_archive. Rebuilt on construction by replaying the
+     * NDJSON sidecar log when resuming an existing archive.
+     *
+     * @var array
+     */
+    private $tar_index = [];
+
+    /**
+     * Tar/TarGz duplicate-entry index sidecar log file path.
+     *
+     * Empty string for all non-Tar/TarGz methods.
+     *
+     * @var string
+     */
+    private $tar_index_file = '';
+
+    /**
+     * Tar/TarGz duplicate-entry index sidecar log file handle.
+     *
+     * @var resource|null
+     */
+    private $tar_index_handle;
+
+    /**
      * BackWPup_Create_Archive constructor.
      *
      * @param string $file file with full path of the archive
@@ -111,13 +138,19 @@ class BackWPup_Create_Archive
 
             $this->method = 'TarGz';
             $this->handlertype = 'gz';
+            $this->tar_index_file = $this->file . '.bwuidx';
+            $is_fresh_start = !is_file($this->file);
             $this->filehandler = $this->fopen($this->file, 'ab');
+            $this->tar_index_init($is_fresh_start);
         }
 
         // .TAR
         if (!$this->filehandler && '.tar' === strtolower(substr($this->file, -4))) {
             $this->method = 'Tar';
+            $this->tar_index_file = $this->file . '.bwuidx';
+            $is_fresh_start = !is_file($this->file);
             $this->filehandler = $this->fopen($this->file, 'ab'); // phpcs:ignore
+            $this->tar_index_init($is_fresh_start);
         }
 
         // .ZIP
@@ -238,6 +271,12 @@ class BackWPup_Create_Archive
         if (is_resource($this->filehandler)) {
             $this->fclose();
         }
+
+        // Close the sidecar handle but keep the file, it is needed to resume.
+        if (is_resource($this->tar_index_handle)) {
+            fclose($this->tar_index_handle); // phpcs:ignore
+            $this->tar_index_handle = null;
+        }
     }
 
     /**
@@ -262,6 +301,61 @@ class BackWPup_Create_Archive
         }
 
         $this->fclose();
+
+        // The archive is complete and will not be resumed again: close and delete the sidecar.
+        $this->tar_index_close_and_delete();
+    }
+
+    /**
+     * Abort a partially-written archive.
+     *
+     * Unlike close(), this discards the in-progress archive: it is not a valid, complete
+     * backup and must not be left on disk, together with its Tar/TarGz duplicate-entry
+     * sidecar. Safe to call for any archive method (Tar, TarGz, Zip, PclZip, gz).
+     */
+    public function abort()
+    {
+        if ($this->ziparchive instanceof \ZipArchive) {
+            $this->ziparchive->close();
+            $this->ziparchive = null;
+        }
+
+        if (is_object($this->pclzip)) {
+            // Drop queued files, the archive is discarded anyway.
+            $this->pclzip_file_list = [];
+        }
+
+        if (is_resource($this->filehandler)) {
+            $this->fclose();
+        }
+
+        $this->tar_index_close_and_delete();
+
+        if ('' !== $this->file && file_exists($this->file)) {
+            @unlink($this->file); // phpcs:ignore
+        }
+    }
+
+    /**
+     * Delete the Tar/TarGz duplicate-entry sidecar file for a given archive path, if any.
+     *
+     * The sidecar only ever exists next to a Tar/TarGz archive (suffix `.bwuidx`); for
+     * other archive methods this is a no-op. Callers should invoke this whenever a
+     * backup archive is deleted from disk so the sidecar does not linger as an orphan.
+     *
+     * @param string $archive_file Full path of the backup archive file.
+     */
+    public static function delete_sidecar_for($archive_file)
+    {
+        if (!is_string($archive_file) || '' === $archive_file) {
+            return;
+        }
+
+        $sidecar_file = $archive_file . '.bwuidx';
+
+        if (file_exists($sidecar_file)) {
+            @unlink($sidecar_file); // phpcs:ignore
+        }
     }
 
     /**
@@ -614,6 +708,14 @@ class BackWPup_Create_Archive
             return false;
         }
 
+        $source_size = filesize($file_name);
+        $source_size = false === $source_size ? null : $source_size;
+
+        $position = $this->tar_resolve_write_position($name_in_archive, 'file', $source_size);
+        if ('skip' === $position['action']) {
+            return true;
+        }
+
         if (!$this->check_archive_filesize($file_name)) {
             return false;
         }
@@ -684,6 +786,9 @@ class BackWPup_Create_Archive
             $this->fwrite($chunk);
         }
 
+        $end_offset = $this->tar_current_offset();
+        $this->tar_index_mark_done($name_in_archive, $end_offset, $file_stat['size']);
+
         return true;
     }
 
@@ -699,6 +804,11 @@ class BackWPup_Create_Archive
         }
 
         $name_in_archive = trailingslashit($name_in_archive);
+
+        $position = $this->tar_resolve_write_position($name_in_archive, 'dir', 0);
+        if ('skip' === $position['action']) {
+            return true;
+        }
 
         $tar_filename = $name_in_archive;
 
@@ -724,6 +834,9 @@ class BackWPup_Create_Archive
 
         $this->fwrite($header);
 
+        $end_offset = $this->tar_current_offset();
+        $this->tar_index_mark_done($name_in_archive, $end_offset, 0);
+
         return true;
     }
 
@@ -747,8 +860,7 @@ class BackWPup_Create_Archive
         }
 
         if (is_resource($this->filehandler)) {
-            $stats = fstat($this->filehandler);
-            $archive_size = $stats['size'];
+            $archive_size = $this->tar_current_offset();
         } else {
             $archive_size = filesize($this->file);
             if ($archive_size === false) {
@@ -872,6 +984,300 @@ class BackWPup_Create_Archive
         $chunk = substr_replace($chunk, $checksum, 148, 8);
 
         return $headers . $chunk;
+    }
+
+    /**
+     * Initialize the Tar/TarGz duplicate-entry sidecar index.
+     *
+     * Called once from the constructor, right after the archive filehandler is
+     * opened, for the Tar and TarGz branches only.
+     *
+     * @param bool $is_fresh_start Whether the archive file did not exist before this
+     *                             instance opened it (i.e. this is not a resume).
+     */
+    private function tar_index_init($is_fresh_start)
+    {
+        if ($is_fresh_start) {
+            if (file_exists($this->tar_index_file)) {
+                @unlink($this->tar_index_file); // phpcs:ignore
+            }
+
+            $this->tar_index = [];
+        } else {
+            $this->tar_index = $this->tar_index_load();
+        }
+
+        $this->tar_index_handle = $this->fopen($this->tar_index_file, 'ab');
+    }
+
+    /**
+     * Close the sidecar handle and delete the sidecar file.
+     */
+    private function tar_index_close_and_delete()
+    {
+        if (is_resource($this->tar_index_handle)) {
+            fclose($this->tar_index_handle); // phpcs:ignore
+            $this->tar_index_handle = null;
+        }
+
+        if ('' !== $this->tar_index_file && file_exists($this->tar_index_file)) {
+            @unlink($this->tar_index_file); // phpcs:ignore
+        }
+    }
+
+    /**
+     * Load and replay the NDJSON sidecar log into an in-memory index.
+     *
+     * Reads the log line by line and replays each decoded line into the index keyed by
+     * name_in_archive, so the last line written for a given name always wins. Fails open
+     * (empty index, E_USER_WARNING) if the log is missing or unreadable; a corrupt line
+     * is skipped with its own warning rather than aborting the whole replay.
+     *
+     * @return array
+     */
+    private function tar_index_load()
+    {
+        $index = [];
+        $last_entry = null;
+
+        if (!is_file($this->tar_index_file) || !is_readable($this->tar_index_file)) {
+            trigger_error(
+                esc_html__('Tar duplicate-entry index sidecar file is missing or unreadable; duplicate-entry protection is disabled for this run.', 'backwpup'),
+                E_USER_WARNING
+            );
+
+            return $index;
+        }
+
+        $handle = fopen($this->tar_index_file, 'rb'); // phpcs:ignore
+
+        if (!is_resource($handle)) {
+            trigger_error(
+                esc_html__('Tar duplicate-entry index sidecar file could not be opened; duplicate-entry protection is disabled for this run.', 'backwpup'),
+                E_USER_WARNING
+            );
+
+            return $index;
+        }
+
+        while (!feof($handle)) {
+            $line = fgets($handle);
+
+            if (false === $line) {
+                break;
+            }
+
+            $line = trim($line);
+
+            if ('' === $line) {
+                continue;
+            }
+
+            $decoded = json_decode($line, true);
+
+            // A truncated or corrupt line (e.g. a hard kill mid-write) is dropped: the name
+            // falls back to an earlier fully-written line or is treated as brand new.
+            if (!is_array($decoded) || !isset($decoded['name'])) {
+                trigger_error(
+                    esc_html__('Skipping corrupt line in Tar duplicate-entry index sidecar file.', 'backwpup'),
+                    E_USER_WARNING
+                );
+
+                continue;
+            }
+
+            $index[$decoded['name']] = $decoded;
+            $last_entry = $decoded;
+        }
+
+        fclose($handle); // phpcs:ignore
+
+        // Size-only validation: reject the sidecar if the real archive file is smaller than
+        // what its last recorded entry implies. A legitimate resume can only make the real
+        // file at least as large as expected, so the comparison is strictly "<".
+        if (null !== $last_entry) {
+            $expected_min_size = 'done' === ($last_entry['status'] ?? null)
+                ? ($last_entry['end_offset'] ?? null)
+                : ($last_entry['start_offset'] ?? null);
+
+            // A malformed/missing offset is itself a reason not to trust the sidecar.
+            if (!is_int($expected_min_size)) {
+                $expected_min_size = PHP_INT_MAX;
+            }
+
+            clearstatcache(true, $this->file);
+            $real_size = is_file($this->file) ? filesize($this->file) : false;
+
+            if (false === $real_size || $real_size < $expected_min_size) {
+                trigger_error(
+                    esc_html__('Tar duplicate-entry index sidecar does not match its archive file (the archive is smaller than the sidecar expects); discarding the stale sidecar instead of trusting it, so no file already marked done is silently skipped from the new archive.', 'backwpup'),
+                    E_USER_WARNING
+                );
+
+                if (file_exists($this->tar_index_file)) {
+                    @unlink($this->tar_index_file); // phpcs:ignore
+                }
+
+                return [];
+            }
+        }
+
+        return $index;
+    }
+
+    /**
+     * Append one entry as a single NDJSON line to the sidecar log.
+     *
+     * @param array $entry Entry to persist.
+     */
+    private function tar_index_append(array $entry)
+    {
+        if (!is_resource($this->tar_index_handle)) {
+            return;
+        }
+
+        fwrite($this->tar_index_handle, wp_json_encode($entry) . "\n"); // phpcs:ignore
+        fflush($this->tar_index_handle);
+    }
+
+    /**
+     * Record that a Tar/TarGz entry write has started, before any bytes are written for it.
+     *
+     * @param string $name         name_in_archive for the entry.
+     * @param string $type         'file'|'dir'.
+     * @param int    $start_offset Byte offset where the entry's header begins.
+     */
+    private function tar_index_mark_pending($name, $type, $start_offset)
+    {
+        $entry = [
+            'name' => $name,
+            'type' => $type,
+            'status' => 'pending',
+            'start_offset' => $start_offset,
+            'end_offset' => null,
+            'size' => null,
+        ];
+
+        $this->tar_index[$name] = $entry;
+
+        $this->tar_index_append($entry);
+    }
+
+    /**
+     * Record that a Tar/TarGz entry write has completed.
+     *
+     * @param string $name       name_in_archive for the entry.
+     * @param int    $end_offset Byte offset right after the entry has been fully written.
+     * @param int    $size       Source size recorded at completion; 0 for directories.
+     */
+    private function tar_index_mark_done($name, $end_offset, $size)
+    {
+        $existing = isset($this->tar_index[$name]) ? $this->tar_index[$name] : [];
+
+        $entry = array_merge(
+            $existing,
+            [
+                'name' => $name,
+                'status' => 'done',
+                'end_offset' => $end_offset,
+                'size' => $size,
+            ]
+        );
+
+        $this->tar_index[$name] = $entry;
+
+        $this->tar_index_append($entry);
+    }
+
+    /**
+     * Get the current, fully-flushed byte offset of the archive filehandler.
+     *
+     * @return int
+     */
+    private function tar_current_offset()
+    {
+        if (!is_resource($this->filehandler)) {
+            return 0;
+        }
+
+        fflush($this->filehandler);
+
+        $stats = fstat($this->filehandler);
+
+        return isset($stats['size']) ? (int) $stats['size'] : 0;
+    }
+
+    /**
+     * Resolve whether a Tar/TarGz entry write should proceed, be skipped, or overwrite
+     * the last-written entry in place.
+     *
+     * Whenever the resolved action is 'write', the pending state (and any truncation)
+     * is persisted to the sidecar log before returning.
+     *
+     * @param string   $name_in_archive Name of entry within the archive.
+     * @param string   $type            'file'|'dir'.
+     * @param int|null $source_size     filesize() for files; 0 for directories; null if unknown.
+     *
+     * @return array{action:string,offset:int}
+     */
+    private function tar_resolve_write_position($name_in_archive, $type, $source_size)
+    {
+        $current_offset = $this->tar_current_offset();
+        $existing = isset($this->tar_index[$name_in_archive]) ? $this->tar_index[$name_in_archive] : null;
+
+        if (null === $existing) {
+            $this->tar_index_mark_pending($name_in_archive, $type, $current_offset);
+
+            return [
+                'action' => 'write',
+                'offset' => $current_offset,
+            ];
+        }
+
+        $is_last_entry = 'pending' === ($existing['status'] ?? null)
+            || (isset($existing['end_offset']) && $existing['end_offset'] === $current_offset);
+
+        if (
+            'done' === ($existing['status'] ?? null)
+            && ($existing['type'] ?? null) === $type
+            && null !== $source_size
+            && ($existing['size'] ?? null) === $source_size
+        ) {
+            // Identical entry already fully written, skip like the ZIP writer does.
+            return [
+                'action' => 'skip',
+                'offset' => $current_offset,
+            ];
+        }
+
+        if ($is_last_entry && isset($existing['start_offset']) && is_int($existing['start_offset'])) {
+            // Safe to discard and rewrite: nothing has been written after this entry.
+            ftruncate($this->filehandler, $existing['start_offset']);
+            fseek($this->filehandler, $existing['start_offset']);
+
+            $this->tar_index_mark_pending($name_in_archive, $type, $existing['start_offset']);
+
+            return [
+                'action' => 'write',
+                'offset' => $existing['start_offset'],
+            ];
+        }
+
+        // Entry differs but is not the last one written: cannot safely rewrite mid-stream
+        // without corrupting subsequent archive data. Skip, never duplicate.
+        trigger_error(
+            sprintf(
+                /* translators: %s: file name in archive. */
+                esc_html__('Skipping "%s": already present in archive at a different size and cannot be safely rewritten mid-stream.', 'backwpup'),
+                esc_html($name_in_archive)
+            ),
+            E_USER_WARNING
+        );
+
+        return [
+            'action' => 'skip',
+            'offset' => $current_offset,
+        ];
     }
 
     /**
