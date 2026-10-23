@@ -3,6 +3,10 @@
  * Create Archive.
  */
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Class for creating File Archives.
  */
@@ -77,7 +81,7 @@ class BackWPup_Create_Archive
     {
         if (!is_string($file) || empty($file)) {
             throw new BackWPup_Create_Archive_Exception(
-                __('The file name of an archive cannot be empty.', 'backwpup')
+                esc_html__('The file name of an archive cannot be empty.', 'backwpup')
             );
         }
 
@@ -87,7 +91,7 @@ class BackWPup_Create_Archive
                 sprintf(
                 // translators: $1 is the file path
                     esc_html_x('Folder %s for archive not found', '%s = Folder name', 'backwpup'),
-                    dirname($file)
+                    esc_html(dirname($file))
                 )
             );
         }
@@ -101,7 +105,7 @@ class BackWPup_Create_Archive
         ) {
             if (!function_exists('gzencode')) {
                 throw new BackWPup_Create_Archive_Exception(
-                    __('Functions for gz compression not available', 'backwpup')
+                    esc_html__('Functions for gz compression not available', 'backwpup')
                 );
             }
 
@@ -143,7 +147,7 @@ class BackWPup_Create_Archive
                         sprintf(
                         // translators: $1 is a directory name
                             esc_html_x('Cannot create zip archive: %d', 'ZipArchive open() result', 'backwpup'),
-                            $ziparchive_open
+                            esc_html((string) $ziparchive_open)
                         )
                     );
                 }
@@ -172,7 +176,7 @@ class BackWPup_Create_Archive
         ) {
             if (!function_exists('gzencode')) {
                 throw new BackWPup_Create_Archive_Exception(
-                    __('Functions for gz compression not available', 'backwpup')
+                    esc_html__('Functions for gz compression not available', 'backwpup')
                 );
             }
 
@@ -186,13 +190,13 @@ class BackWPup_Create_Archive
                 sprintf(
                 // translators: the $1 is the type of the archive file
                     esc_html_x('Method to archive file %s not detected', '%s = file name', 'backwpup'),
-                    basename($this->file)
+                    esc_html(basename($this->file))
                 )
             );
         }
 
         if (null === $this->filehandler) {
-            throw new BackWPup_Create_Archive_Exception(__('Cannot open archive file', 'backwpup'));
+            throw new BackWPup_Create_Archive_Exception(esc_html__('Cannot open archive file', 'backwpup'));
         }
     }
 
@@ -211,7 +215,7 @@ class BackWPup_Create_Archive
                         sprintf(
                         // translatores: $1 is the error string
                             esc_html__('PclZip archive add error: %s', 'backwpup'),
-                            $this->pclzip->errorInfo(true)
+                            esc_html((string) $this->pclzip->errorInfo(true))
                         ),
                         E_USER_ERROR
                     );
@@ -282,16 +286,18 @@ class BackWPup_Create_Archive
      */
     public function add_file($file_name, $name_in_archive = '')
     {
-        $file_name = trim($file_name);
-
-        if (!is_string($file_name) || empty($file_name)) {
+        if (!is_string($file_name) || '' === trim($file_name)) {
             trigger_error(
                 esc_html__('File name cannot be empty.', 'backwpup'),
                 E_USER_WARNING
             );
 
-            return false;
+            // Skip the entry instead of failing the whole archive.
+            return true;
         }
+
+        $file_name = trim($file_name);
+        $name_in_archive = (string) $name_in_archive;
 
         clearstatcache(true, $file_name);
 
@@ -300,7 +306,7 @@ class BackWPup_Create_Archive
                 sprintf(
                 // translators: The $1 is the name of the file to add to the archive.
                     esc_html_x('File %s does not exist or is not readable', 'File to add to archive', 'backwpup'),
-                    $file_name
+                    esc_html($file_name)
                 ),
                 E_USER_WARNING
             );
@@ -343,21 +349,20 @@ class BackWPup_Create_Archive
             case 'Tar':
             case 'TarGz':
                 // Convert chars for archives file names
-                if (function_exists('iconv') && stripos(PHP_OS, 'win') === 0) {
+                if (function_exists('iconv') && 'Windows' === PHP_OS_FAMILY) {
                     $test = @iconv('ISO-8859-1', 'UTF-8', $name_in_archive);
-                    if ($test) {
+                    if (false !== $test) {
                         $name_in_archive = $test;
                     }
                 }
 
                 return $this->tar_file($file_name, $name_in_archive);
-                break;
 
             case \ZipArchive::class:
                 // Convert chars for archives file names.
-                if (function_exists('iconv') && stripos(PHP_OS, 'win') === 0) {
+                if (function_exists('iconv') && 'Windows' === PHP_OS_FAMILY) {
                     $test = @iconv('UTF-8', 'CP437', $name_in_archive);
-                    if ($test) {
+                    if (false !== $test) {
                         $name_in_archive = $test;
                     }
                 }
@@ -413,13 +418,27 @@ class BackWPup_Create_Archive
                 }
 
                 if ($file_size < (1024 * 1024 * 2)) {
-                    if (!$this->ziparchive->addFromString($name_in_archive, file_get_contents($file_name))) {
+                    $file_contents = file_get_contents($file_name); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+                    if (false === $file_contents) {
+                        trigger_error(
+                            sprintf(
+                            // translators: %s: File name added to the archive.
+                                esc_html__('Cannot read "%s" for zip archive!', 'backwpup'),
+                                esc_html($name_in_archive)
+                            ),
+                            E_USER_ERROR
+                        );
+
+                        return false;
+                    }
+
+                    if (!$this->ziparchive->addFromString($name_in_archive, $file_contents)) {
                         $this->ziparchive_status();
                         trigger_error(
                             sprintf(
                             // translators: the $1 is the name of the archive.
                                 esc_html__('Cannot add "%s" to zip archive!', 'backwpup'),
-                                $name_in_archive
+                                esc_html($name_in_archive)
                             ),
                             E_USER_ERROR
                         );
@@ -435,7 +454,7 @@ class BackWPup_Create_Archive
                             sprintf(
                             // translators: the $1 is the name of the archive.
                                 esc_html__('Cannot add "%s" to zip archive!', 'backwpup'),
-                                $name_in_archive
+                                esc_html($name_in_archive)
                             ),
                             E_USER_ERROR
                         );
@@ -458,7 +477,7 @@ class BackWPup_Create_Archive
                             sprintf(
                             // translators: The $1 is the tecnical error string from pclzip.
                                 esc_html__('PclZip archive add error: %s', 'backwpup'),
-                                $this->pclzip->errorInfo(true)
+                                esc_html((string) $this->pclzip->errorInfo(true))
                             ),
                             E_USER_ERROR
                         );
@@ -483,7 +502,7 @@ class BackWPup_Create_Archive
      */
     public function add_empty_folder($folder_name, $name_in_archive)
     {
-        $folder_name = trim($folder_name);
+        $folder_name = trim((string) $folder_name);
 
         if (empty($folder_name)) {
             trigger_error(
@@ -503,7 +522,7 @@ class BackWPup_Create_Archive
                         'Folder path to add to archive',
                         'backwpup'
                     ),
-                    $folder_name
+                    esc_html($folder_name)
                 ),
                 E_USER_WARNING
             );
@@ -541,7 +560,7 @@ class BackWPup_Create_Archive
                         sprintf(
                         // translators: $1 is the name of the archive.
                             esc_html__('Cannot add "%s" to zip archive!', 'backwpup'),
-                            $name_in_archive
+                            esc_html($name_in_archive)
                         ),
                         E_USER_WARNING
                     );
@@ -573,7 +592,7 @@ class BackWPup_Create_Archive
             sprintf(
             // translators. $1 is the status returned by a call to a ZipArchive method.
                 esc_html_x('ZipArchive returns status: %s', 'Text of ZipArchive status Message', 'backwpup'),
-                $this->ziparchive->getStatusString()
+                esc_html((string) $this->ziparchive->getStatusString())
             ),
             E_USER_ERROR
         );
@@ -635,7 +654,7 @@ class BackWPup_Create_Archive
                 trigger_error(
                     sprintf(
                         esc_html__('Cannot open source file %s for archiving. Writing an empty file.', 'backwpup'),
-                        $file_name
+                        esc_html($file_name)
                     ),
                     E_USER_WARNING
                 );
@@ -644,7 +663,12 @@ class BackWPup_Create_Archive
 
         if ($fd) {
             // Read/write files in 512 bit Blocks.
-            while (($content = fread($fd, 512)) != '') { // phpcs:ignore
+            while (!feof($fd)) {
+                $content = fread($fd, 512); // phpcs:ignore
+                if ('' === $content || false === $content) {
+                    break;
+                }
+
                 $chunk .= pack('a512', $content);
 
                 if (strlen($chunk) >= $chunk_size) {
@@ -679,6 +703,9 @@ class BackWPup_Create_Archive
         $tar_filename = $name_in_archive;
 
         $file_stat = @stat($folder_name);
+        if (!$file_stat) {
+            return false;
+        }
         // Retrieve owner and group for the file.
         [$owner, $group] = $this->posix_getpwuid($file_stat['uid'], $file_stat['gid']);
 
@@ -737,7 +764,7 @@ class BackWPup_Create_Archive
                         'If %s will be added to your backup archive, the archive will be too large for operations with this PHP Version. You might want to consider splitting the backup job in multiple jobs with less files each.',
                         'backwpup'
                     ),
-                    $file_to_add
+                    esc_html($file_to_add)
                 ),
                 E_USER_ERROR
             );
@@ -895,7 +922,7 @@ class BackWPup_Create_Archive
                 sprintf(
                 // translators: $1 is the filename to add into the archive.
                     esc_html__('Cannot open source file %s.', 'backwpup'),
-                    $filename
+                    esc_html($filename)
                 ),
                 E_USER_WARNING
             );
