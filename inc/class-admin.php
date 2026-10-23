@@ -851,6 +851,12 @@ EOT;
     }
 
 	public function init() {
+		// Do not register any BackWPup admin hooks (restore AJAX endpoints, admin-post
+		// handlers, menus) for users without BackWPup access.
+		if ( ! current_user_can( 'backwpup' ) ) {
+			return;
+		}
+
 		$restore = new Restore();
 		$restore->set_hooks()->init();
 
