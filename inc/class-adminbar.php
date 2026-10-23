@@ -54,14 +54,14 @@ class BackWPup_Adminbar
             $wp_admin_bar->add_menu([
                 'id' => 'backwpup_working',
                 'parent' => 'backwpup_jobs',
-                'title' => __('Now Running', 'backwpup'),
+                'title' => esc_html__('Now Running', 'backwpup'),
                 'href' => network_admin_url('admin.php?page=backwpupjobs'),
             ]);
             $wp_admin_bar->add_menu([
                 'id' => 'backwpup_working_abort',
                 'parent' => 'backwpup_working',
-                'title' => __('Abort!', 'backwpup'),
-                'href' => wp_nonce_url(network_admin_url('admin.php?page=backwpup&action=abort'), 'abort-job'),
+                'title' => esc_html__('Abort!', 'backwpup'),
+                'href' => wp_nonce_url(network_admin_url('admin.php?page=backwpupjobs&action=abort'), 'abort-job'),
             ]);
         }
 
@@ -69,7 +69,7 @@ class BackWPup_Adminbar
             $wp_admin_bar->add_menu([
                 'id' => 'backwpup_jobs',
                 'parent' => 'backwpup',
-                'title' => __('Jobs', 'backwpup'),
+                'title' => esc_html__('Jobs', 'backwpup'),
                 'href' => network_admin_url('admin.php?page=backwpupjobs'),
             ]);
         }
@@ -78,7 +78,7 @@ class BackWPup_Adminbar
             $wp_admin_bar->add_menu([
                 'id' => 'backwpup_jobs_new',
                 'parent' => 'backwpup_jobs',
-                'title' => __('Add new', 'backwpup'),
+                'title' => esc_html__('Add new', 'backwpup'),
                 'href' => network_admin_url('admin.php?page=backwpupeditjob&tab=job'),
             ]);
         }
@@ -87,7 +87,7 @@ class BackWPup_Adminbar
             $wp_admin_bar->add_menu([
                 'id' => 'backwpup_logs',
                 'parent' => 'backwpup',
-                'title' => __('Logs', 'backwpup'),
+                'title' => esc_html__('Logs', 'backwpup'),
                 'href' => network_admin_url('admin.php?page=backwpuplogs'),
             ]);
         }
@@ -96,7 +96,7 @@ class BackWPup_Adminbar
             $wp_admin_bar->add_menu([
                 'id' => 'backwpup_backups',
                 'parent' => 'backwpup',
-                'title' => __('Backups', 'backwpup'),
+                'title' => esc_html__('Backups', 'backwpup'),
                 'href' => network_admin_url('admin.php?page=backwpupbackups'),
             ]);
         }
@@ -110,7 +110,7 @@ class BackWPup_Adminbar
                 $wp_admin_bar->add_menu([
                     'id' => 'backwpup_jobs_' . $jobid,
                     'parent' => 'backwpup_jobs',
-                    'title' => $name,
+                    'title' => esc_html($name),
                     'href' => wp_nonce_url(network_admin_url('admin.php?page=backwpupeditjob&tab=job&jobid=' . $jobid), 'edit-job'),
                 ]);
             }
@@ -119,8 +119,8 @@ class BackWPup_Adminbar
                 $wp_admin_bar->add_menu([
                     'id' => 'backwpup_jobs_runnow_' . $jobid,
                     'parent' => 'backwpup_jobs_' . $jobid,
-                    'title' => __('Run Now', 'backwpup'),
-                    'href' => esc_url($url['url']),
+                    'title' => esc_html__('Run Now', 'backwpup'),
+                    'href' => $url['url'],
                 ]);
             }
         }
