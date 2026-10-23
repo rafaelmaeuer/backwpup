@@ -109,16 +109,21 @@ class BackWPup_Destination_Downloader
 
         $source_file_path = $this->data->source_file_path();
         $local_file_path = $this->data->local_file_path();
-        $size = $this->destination->calculate_size();
         $start_byte = 0;
         $chunk_size = 2 * 1024 * 1024;
         $end_byte = $start_byte + $chunk_size - 1;
 
-        if ($end_byte >= $size) {
-            $end_byte = $size - 1;
-        }
-
         try {
+            // Inside the try block, so connection or lookup errors are reported to the user.
+            $size = (int) $this->destination->calculate_size();
+            if ($size <= 0) {
+                throw new \RuntimeException(__('The backup file could not be found or is empty.', 'backwpup'));
+            }
+
+            if ($end_byte >= $size) {
+                $end_byte = $size - 1;
+            }
+
             while ($end_byte <= $size) {
                 $this->destination->download_chunk($start_byte, $end_byte);
                 self::send_message(
