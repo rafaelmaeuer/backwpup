@@ -32,10 +32,10 @@ class BackWPup_JobType_DBDump extends BackWPup_JobTypes
             'dbdumpexclude' => [], 'dbdumpfile' => sanitize_file_name(DB_NAME), 'dbdumptype' => 'sql', 'dbdumpfilecompression' => '',
         ];
         //set only wordpress tables as default
-        $dbtables = $wpdb->get_results('SHOW TABLES FROM `' . DB_NAME . '`', ARRAY_N);
+        $dbtables = (array) $wpdb->get_results('SHOW TABLES', ARRAY_N);
 
         foreach ($dbtables as $dbtable) {
-            if ($wpdb->prefix != substr((string) $dbtable[0], 0, strlen($wpdb->prefix))) {
+            if (strncmp((string) $dbtable[0], $wpdb->prefix, strlen($wpdb->prefix)) !== 0) {
                 $defaults['dbdumpexclude'][] = $dbtable[0];
             }
         }
@@ -61,7 +61,8 @@ class BackWPup_JobType_DBDump extends BackWPup_JobTypes
 					<input type="button" class="button-secondary" id="dbnone" value="<?php esc_attr_e('none', 'backwpup'); ?>">&nbsp;
                     <input type="button" class="button-secondary" id="dbwp" value="<?php echo esc_attr($wpdb->prefix); ?>">
 					<?php
-                    $tables = $wpdb->get_results('SHOW FULL TABLES FROM `' . DB_NAME . '`', ARRAY_N);
+                    $tables = (array) $wpdb->get_results('SHOW FULL TABLES', ARRAY_N);
+                    $dbdumpexclude = (array) BackWPup_Option::get($jobid, 'dbdumpexclude');
         echo '<fieldset id="dbtables"><div style="width: 30%; float:left; min-width: 250px; margin-right: 10px;">';
         $next_row = ceil(count($tables) / 3);
         $counter = 0;
@@ -71,7 +72,7 @@ class BackWPup_JobType_DBDump extends BackWPup_JobTypes
 						if ( 'BASE TABLE' !== $table[1] ) {
 							$tabletype = ' <i>(' . strtolower( esc_html( $table[1] ) ) . ')</i>';
 						}
-						echo '<label for="idtabledb-' . esc_html( $table[0] ) . '""><input class="checkbox" type="checkbox"' . checked( ! in_array( $table[0], BackWPup_Option::get( $jobid, 'dbdumpexclude' ), true ), true, false ) . ' name="tabledb[]" id="idtabledb-' . esc_html( $table[0] ) . '" value="' . esc_html( $table[0] ) . '"/> ' . esc_html( $table[0] ) . $tabletype . '</label><br />'; //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+						echo '<label for="idtabledb-' . esc_attr( $table[0] ) . '"><input class="checkbox" type="checkbox"' . checked( ! in_array( $table[0], $dbdumpexclude, true ), true, false ) . ' name="tabledb[]" id="idtabledb-' . esc_attr( $table[0] ) . '" value="' . esc_attr( $table[0] ) . '"/> ' . esc_html( $table[0] ) . $tabletype . '</label><br />'; //phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 						++$counter;
 						if ( $next_row <= $counter ) {
 							echo '</div><div style="width: 30%; float:left; min-width: 250px; margin-right: 10px;">';
@@ -94,19 +95,25 @@ class BackWPup_JobType_DBDump extends BackWPup_JobTypes
         /** @var wpdb $wpdb */
         global $wpdb;
 
-        if ($_POST['dbdumpfilecompression'] === '' || $_POST['dbdumpfilecompression'] === '.gz') {
+        // phpcs:disable WordPress.Security.NonceVerification.Missing -- Nonce is checked in BackWPup_Admin::save_post_form().
+        if (isset($_POST['dbdumpfilecompression']) && ($_POST['dbdumpfilecompression'] === '' || $_POST['dbdumpfilecompression'] === '.gz')) {
             BackWPup_Option::update($id, 'dbdumpfilecompression', $_POST['dbdumpfilecompression']);
         }
-        BackWPup_Option::update($id, 'dbdumpfile', BackWPup_Job::sanitize_file_name($_POST['dbdumpfile']));
+        if (isset($_POST['dbdumpfile']) && is_string($_POST['dbdumpfile']) && $_POST['dbdumpfile'] !== '') {
+            BackWPup_Option::update($id, 'dbdumpfile', BackWPup_Job::sanitize_file_name(wp_unslash($_POST['dbdumpfile'])));
+        }
         //selected tables
         $dbdumpexclude = [];
         $checked_db_tables = [];
-        if (isset($_POST['tabledb'])) {
-            foreach ($_POST['tabledb'] as $dbtable) {
-                $checked_db_tables[] = sanitize_text_field($dbtable);
+        if (isset($_POST['tabledb']) && is_array($_POST['tabledb'])) {
+            foreach (wp_unslash($_POST['tabledb']) as $dbtable) {
+                if (is_string($dbtable)) {
+                    $checked_db_tables[] = sanitize_text_field($dbtable);
+                }
             }
         }
-        $dbtables = $wpdb->get_results('SHOW TABLES FROM `' . DB_NAME . '`', ARRAY_N);
+        // phpcs:enable WordPress.Security.NonceVerification.Missing
+        $dbtables = (array) $wpdb->get_results('SHOW TABLES', ARRAY_N);
 
         foreach ($dbtables as $dbtable) {
             if (!in_array($dbtable[0], $checked_db_tables, true)) {
@@ -147,8 +154,10 @@ class BackWPup_JobType_DBDump extends BackWPup_JobTypes
             }
 
             //Exclude Tables
+            $dbdumpexclude = isset($job_object->job['dbdumpexclude']) ? (array) $job_object->job['dbdumpexclude'] : [];
+
             foreach ($sql_dump->tables_to_dump as $key => $table) {
-                if (in_array($table, $job_object->job['dbdumpexclude'], true)) {
+                if (in_array($table, $dbdumpexclude, true)) {
                     unset($sql_dump->tables_to_dump[$key]);
                 }
             }
@@ -182,7 +191,7 @@ class BackWPup_JobType_DBDump extends BackWPup_JobTypes
                     $job_object->steps_data[$job_object->step_working]['tables'][$table] = ['start' => 0,
                         'length' => 1000, ];
                     if ($job_object->is_debug()) {
-                        $job_object->log(sprintf(__('Backup database table "%s" with "%s" records', 'backwpup'), $table, $num_records));
+                        $job_object->log(sprintf(__('Backup database table "%s" with "%s" records', 'backwpup'), esc_html($table), $num_records));
                     }
                 }
                 $while = true;

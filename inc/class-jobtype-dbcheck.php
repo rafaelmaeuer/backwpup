@@ -80,22 +80,23 @@ class BackWPup_JobType_DBCheck extends BackWPup_JobTypes
         //to check
         $tables = [];
         $tablestype = [];
-        $restables = $wpdb->get_results('SHOW FULL TABLES FROM `' . DB_NAME . '`', ARRAY_N);
+        $restables = (array) $wpdb->get_results('SHOW FULL TABLES', ARRAY_N);
 
         foreach ($restables as $table) {
-            if ($job_object->job['dbcheckwponly'] && substr((string) $table[0], 0, strlen($wpdb->prefix)) != $wpdb->prefix) {
+            $table_name = (string) $table[0];
+            if (!empty($job_object->job['dbcheckwponly']) && strncmp($table_name, $wpdb->prefix, strlen($wpdb->prefix)) !== 0) {
                 continue;
             }
-            $tables[] = $table[0];
-            $tablestype[$table[0]] = $table[1];
+            $tables[] = $table_name;
+            $tablestype[$table_name] = $table[1];
         }
 
         //Set num
-        $job_object->substeps_todo = sizeof($tables);
+        $job_object->substeps_todo = count($tables);
 
         //Get table status
         $status = [];
-        $resstatus = $wpdb->get_results('SHOW TABLE STATUS FROM `' . DB_NAME . '`', ARRAY_A);
+        $resstatus = (array) $wpdb->get_results('SHOW TABLE STATUS', ARRAY_A);
 
         foreach ($resstatus as $tablestatus) {
             $status[$tablestatus['Name']] = $tablestatus;
@@ -108,38 +109,51 @@ class BackWPup_JobType_DBCheck extends BackWPup_JobTypes
                     continue;
                 }
 
-                if ($tablestype[$table] == 'VIEW') {
-                    $job_object->log(sprintf(__('Table %1$s is a view. Not checked.', 'backwpup'), $table));
+                if (!isset($tablestype[$table])) {
+                    continue;
+                }
+
+                // Quote the identifier, table names come from SHOW TABLES but may contain backticks.
+                $table_identifier = '`' . str_replace('`', '``', $table) . '`';
+                $table_log_name = esc_html($table);
+
+                if ($tablestype[$table] === 'VIEW') {
+                    $job_object->log(sprintf(__('Table %1$s is a view. Not checked.', 'backwpup'), $table_log_name));
 
                     continue;
                 }
 
-                if ($status[$table]['Engine'] != 'MyISAM' && $status[$table]['Engine'] != 'InnoDB') {
-                    $job_object->log(sprintf(__('Table %1$s is not a MyISAM/InnoDB table. Not checked.', 'backwpup'), $table));
+                $engine = $status[$table]['Engine'] ?? '';
+                if ($engine !== 'MyISAM' && $engine !== 'InnoDB') {
+                    $job_object->log(sprintf(__('Table %1$s is not a MyISAM/InnoDB table. Not checked.', 'backwpup'), $table_log_name));
 
                     continue;
                 }
 
                 //CHECK TABLE funktioniert bei MyISAM- und InnoDB-Tabellen (http://dev.mysql.com/doc/refman/5.1/de/check-table.html)
-                $check = $wpdb->get_row('CHECK TABLE `' . $table . '` MEDIUM', OBJECT);
-                if (strtolower((string) $check->Msg_text) == 'ok') {
+                $check = $wpdb->get_row('CHECK TABLE ' . $table_identifier . ' MEDIUM', OBJECT); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                $check_msg_text = isset($check->Msg_text) ? (string) $check->Msg_text : (string) $wpdb->last_error;
+                $check_msg_type = isset($check->Msg_type) ? (string) $check->Msg_type : 'error';
+                if (strtolower($check_msg_text) === 'ok') {
                     if ($job_object->is_debug()) {
-                        $job_object->log(sprintf(__('Result of table check for %1$s is: %2$s', 'backwpup'), $table, $check->Msg_text));
+                        $job_object->log(sprintf(__('Result of table check for %1$s is: %2$s', 'backwpup'), $table_log_name, esc_html($check_msg_text)));
                     }
-                } elseif (strtolower((string) $check->Msg_type) == 'warning') {
-                    $job_object->log(sprintf(__('Result of table check for %1$s is: %2$s', 'backwpup'), $table, $check->Msg_text), E_USER_WARNING);
+                } elseif (strtolower($check_msg_type) === 'warning') {
+                    $job_object->log(sprintf(__('Result of table check for %1$s is: %2$s', 'backwpup'), $table_log_name, esc_html($check_msg_text)), E_USER_WARNING);
                 } else {
-                    $job_object->log(sprintf(__('Result of table check for %1$s is: %2$s', 'backwpup'), $table, $check->Msg_text), E_USER_ERROR);
+                    $job_object->log(sprintf(__('Result of table check for %1$s is: %2$s', 'backwpup'), $table_log_name, esc_html($check_msg_text)), E_USER_ERROR);
                 }
                 //Try to Repair table
-                if (!empty($job_object->job['dbcheckrepair']) && strtolower((string) $check->Msg_text) != 'ok' && $status[$table]['Engine'] == 'MyISAM') {
-                    $repair = $wpdb->get_row('REPAIR TABLE `' . $table . '` EXTENDED', OBJECT);
-                    if (strtolower((string) $repair->Msg_text) == 'ok') {
-                        $job_object->log(sprintf(__('Result of table repair for %1$s is: %2$s', 'backwpup'), $table, $repair->Msg_text));
-                    } elseif (strtolower((string) $repair->Msg_type) == 'warning') {
-                        $job_object->log(sprintf(__('Result of table repair for %1$s is: %2$s', 'backwpup'), $table, $repair->Msg_text), E_USER_WARNING);
+                if (!empty($job_object->job['dbcheckrepair']) && strtolower($check_msg_text) !== 'ok' && $engine === 'MyISAM') {
+                    $repair = $wpdb->get_row('REPAIR TABLE ' . $table_identifier . ' EXTENDED', OBJECT); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                    $repair_msg_text = isset($repair->Msg_text) ? (string) $repair->Msg_text : (string) $wpdb->last_error;
+                    $repair_msg_type = isset($repair->Msg_type) ? (string) $repair->Msg_type : 'error';
+                    if (strtolower($repair_msg_text) === 'ok') {
+                        $job_object->log(sprintf(__('Result of table repair for %1$s is: %2$s', 'backwpup'), $table_log_name, esc_html($repair_msg_text)));
+                    } elseif (strtolower($repair_msg_type) === 'warning') {
+                        $job_object->log(sprintf(__('Result of table repair for %1$s is: %2$s', 'backwpup'), $table_log_name, esc_html($repair_msg_text)), E_USER_WARNING);
                     } else {
-                        $job_object->log(sprintf(__('Result of table repair for %1$s is: %2$s', 'backwpup'), $table, $repair->Msg_text), E_USER_ERROR);
+                        $job_object->log(sprintf(__('Result of table repair for %1$s is: %2$s', 'backwpup'), $table_log_name, esc_html($repair_msg_text)), E_USER_ERROR);
                     }
                 }
                 $job_object->steps_data[$job_object->step_working]['DONETABLE'][] = $table;
