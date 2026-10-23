@@ -9,8 +9,6 @@ class ComposerStaticInitbd9daef8d5e05de248b6db9492444827
     public static $files = array (
         '7b11c4dc42b3b3023073cb14e519683c' => __DIR__ . '/..' . '/ralouphie/getallheaders/src/getallheaders.php',
         '6e3fae29631ef280660b3cdad06f25a8' => __DIR__ . '/..' . '/symfony/deprecation-contracts/function.php',
-        'a0edc8309cc5e1d60e3047b5df6b7052' => __DIR__ . '/..' . '/guzzlehttp/psr7/src/functions_include.php',
-        'c964ee0ededf28c96ebd9db5099ef910' => __DIR__ . '/..' . '/guzzlehttp/promises/src/functions_include.php',
         '37a3dc5111fe8f707ab4c132ef1dbc62' => __DIR__ . '/..' . '/guzzlehttp/guzzle/src/functions_include.php',
         'a4a119a56e50fbb293281d9a48007e0e' => __DIR__ . '/..' . '/symfony/polyfill-php80/bootstrap.php',
         '0e6d7bf4a5811bfa5cf40c5ccd6fae6a' => __DIR__ . '/..' . '/symfony/polyfill-mbstring/bootstrap.php',
@@ -21,19 +19,19 @@ class ComposerStaticInitbd9daef8d5e05de248b6db9492444827
     );
 
     public static $prefixLengthsPsr4 = array (
-        'p' => 
+        'p' =>
         array (
             'phpseclib3\\' => 11,
         ),
-        'm' => 
+        'm' =>
         array (
             'mikemccabe\\JsonPatch\\' => 21,
         ),
-        'W' => 
+        'W' =>
         array (
             'Webmozart\\Assert\\' => 17,
         ),
-        'S' => 
+        'S' =>
         array (
             'Symfony\\Polyfill\\Php80\\' => 23,
             'Symfony\\Polyfill\\Mbstring\\' => 26,
@@ -41,7 +39,7 @@ class ComposerStaticInitbd9daef8d5e05de248b6db9492444827
             'Symfony\\Component\\OptionsResolver\\' => 34,
             'Symfony\\Component\\EventDispatcher\\' => 34,
         ),
-        'P' => 
+        'P' =>
         array (
             'Psr\\Log\\' => 8,
             'Psr\\Http\\Message\\' => 17,
@@ -50,22 +48,22 @@ class ComposerStaticInitbd9daef8d5e05de248b6db9492444827
             'Psr\\Container\\' => 14,
             'ParagonIE\\ConstantTime\\' => 23,
         ),
-        'M' => 
+        'M' =>
         array (
             'Monolog\\' => 8,
             'Microsoft\\Graph\\' => 16,
             'MicrosoftAzure\\Storage\\Common\\' => 30,
             'MicrosoftAzure\\Storage\\Blob\\' => 28,
         ),
-        'K' => 
+        'K' =>
         array (
             'Krizalys\\Onedrive\\' => 18,
         ),
-        'J' => 
+        'J' =>
         array (
             'JmesPath\\' => 9,
         ),
-        'I' => 
+        'I' =>
         array (
             'Inpsyde\\Restore\\' => 16,
             'Inpsyde\\BackWPup\\Archiver\\' => 26,
@@ -73,187 +71,187 @@ class ComposerStaticInitbd9daef8d5e05de248b6db9492444827
             'Inpsyde\\BackWPupShared\\' => 23,
             'Inpsyde\\Assert\\' => 15,
         ),
-        'G' => 
+        'G' =>
         array (
             'GuzzleHttp\\Psr7\\' => 16,
             'GuzzleHttp\\Promise\\' => 19,
             'GuzzleHttp\\' => 11,
         ),
-        'B' => 
+        'B' =>
         array (
             'Beta\\Microsoft\\Graph\\' => 21,
             'Base32\\' => 7,
         ),
-        'A' => 
+        'A' =>
         array (
             'Aws\\' => 4,
         ),
     );
 
     public static $prefixDirsPsr4 = array (
-        'phpseclib3\\' => 
+        'phpseclib3\\' =>
         array (
             0 => __DIR__ . '/..' . '/phpseclib/phpseclib/phpseclib',
         ),
-        'mikemccabe\\JsonPatch\\' => 
+        'mikemccabe\\JsonPatch\\' =>
         array (
             0 => __DIR__ . '/..' . '/mikemccabe/json-patch-php/src',
         ),
-        'Webmozart\\Assert\\' => 
+        'Webmozart\\Assert\\' =>
         array (
             0 => __DIR__ . '/..' . '/webmozart/assert/src',
         ),
-        'Symfony\\Polyfill\\Php80\\' => 
+        'Symfony\\Polyfill\\Php80\\' =>
         array (
             0 => __DIR__ . '/..' . '/symfony/polyfill-php80',
         ),
-        'Symfony\\Polyfill\\Mbstring\\' => 
+        'Symfony\\Polyfill\\Mbstring\\' =>
         array (
             0 => __DIR__ . '/..' . '/symfony/polyfill-mbstring',
         ),
-        'Symfony\\Contracts\\EventDispatcher\\' => 
+        'Symfony\\Contracts\\EventDispatcher\\' =>
         array (
             0 => __DIR__ . '/..' . '/symfony/event-dispatcher-contracts',
         ),
-        'Symfony\\Component\\OptionsResolver\\' => 
+        'Symfony\\Component\\OptionsResolver\\' =>
         array (
             0 => __DIR__ . '/..' . '/symfony/options-resolver',
         ),
-        'Symfony\\Component\\EventDispatcher\\' => 
+        'Symfony\\Component\\EventDispatcher\\' =>
         array (
             0 => __DIR__ . '/..' . '/symfony/event-dispatcher',
         ),
-        'Psr\\Log\\' => 
+        'Psr\\Log\\' =>
         array (
             0 => __DIR__ . '/..' . '/psr/log/Psr/Log',
         ),
-        'Psr\\Http\\Message\\' => 
+        'Psr\\Http\\Message\\' =>
         array (
             0 => __DIR__ . '/..' . '/psr/http-factory/src',
             1 => __DIR__ . '/..' . '/psr/http-message/src',
         ),
-        'Psr\\Http\\Client\\' => 
+        'Psr\\Http\\Client\\' =>
         array (
             0 => __DIR__ . '/..' . '/psr/http-client/src',
         ),
-        'Psr\\EventDispatcher\\' => 
+        'Psr\\EventDispatcher\\' =>
         array (
             0 => __DIR__ . '/..' . '/psr/event-dispatcher/src',
         ),
-        'Psr\\Container\\' => 
+        'Psr\\Container\\' =>
         array (
             0 => __DIR__ . '/..' . '/psr/container/src',
         ),
-        'ParagonIE\\ConstantTime\\' => 
+        'ParagonIE\\ConstantTime\\' =>
         array (
             0 => __DIR__ . '/..' . '/paragonie/constant_time_encoding/src',
         ),
-        'Monolog\\' => 
+        'Monolog\\' =>
         array (
             0 => __DIR__ . '/..' . '/monolog/monolog/src/Monolog',
         ),
-        'Microsoft\\Graph\\' => 
+        'Microsoft\\Graph\\' =>
         array (
             0 => __DIR__ . '/..' . '/microsoft/microsoft-graph/src',
         ),
-        'MicrosoftAzure\\Storage\\Common\\' => 
+        'MicrosoftAzure\\Storage\\Common\\' =>
         array (
             0 => __DIR__ . '/..' . '/microsoft/azure-storage-common/src/Common',
         ),
-        'MicrosoftAzure\\Storage\\Blob\\' => 
+        'MicrosoftAzure\\Storage\\Blob\\' =>
         array (
             0 => __DIR__ . '/..' . '/microsoft/azure-storage-blob/src/Blob',
         ),
-        'Krizalys\\Onedrive\\' => 
+        'Krizalys\\Onedrive\\' =>
         array (
             0 => __DIR__ . '/..' . '/krizalys/onedrive-php-sdk/src',
         ),
-        'JmesPath\\' => 
+        'JmesPath\\' =>
         array (
             0 => __DIR__ . '/..' . '/mtdowling/jmespath.php/src',
         ),
-        'Inpsyde\\Restore\\' => 
+        'Inpsyde\\Restore\\' =>
         array (
             0 => __DIR__ . '/..' . '/inpsyde/backwpup-restore-shared/src',
         ),
-        'Inpsyde\\BackWPup\\Archiver\\' => 
+        'Inpsyde\\BackWPup\\Archiver\\' =>
         array (
             0 => __DIR__ . '/..' . '/inpsyde/backwpup-archiver/src',
         ),
-        'Inpsyde\\BackWPup\\' => 
+        'Inpsyde\\BackWPup\\' =>
         array (
             0 => __DIR__ . '/../..' . '/src',
         ),
-        'Inpsyde\\BackWPupShared\\' => 
+        'Inpsyde\\BackWPupShared\\' =>
         array (
             0 => __DIR__ . '/..' . '/inpsyde/backwpup-shared/src',
         ),
-        'Inpsyde\\Assert\\' => 
+        'Inpsyde\\Assert\\' =>
         array (
             0 => __DIR__ . '/..' . '/inpsyde/assert/src',
         ),
-        'GuzzleHttp\\Psr7\\' => 
+        'GuzzleHttp\\Psr7\\' =>
         array (
             0 => __DIR__ . '/..' . '/guzzlehttp/psr7/src',
         ),
-        'GuzzleHttp\\Promise\\' => 
+        'GuzzleHttp\\Promise\\' =>
         array (
             0 => __DIR__ . '/..' . '/guzzlehttp/promises/src',
         ),
-        'GuzzleHttp\\' => 
+        'GuzzleHttp\\' =>
         array (
             0 => __DIR__ . '/..' . '/guzzlehttp/guzzle/src',
         ),
-        'Beta\\Microsoft\\Graph\\' => 
+        'Beta\\Microsoft\\Graph\\' =>
         array (
             0 => __DIR__ . '/..' . '/microsoft/microsoft-graph/src/Beta/Microsoft/Graph',
         ),
-        'Base32\\' => 
+        'Base32\\' =>
         array (
             0 => __DIR__ . '/..' . '/christian-riesen/base32/src',
         ),
-        'Aws\\' => 
+        'Aws\\' =>
         array (
             0 => __DIR__ . '/..' . '/aws/aws-sdk-php/src',
         ),
     );
 
     public static $prefixesPsr0 = array (
-        'P' => 
+        'P' =>
         array (
-            'Pimple' => 
+            'Pimple' =>
             array (
                 0 => __DIR__ . '/..' . '/pimple/pimple/src',
             ),
         ),
-        'O' => 
+        'O' =>
         array (
-            'OpenCloud' => 
+            'OpenCloud' =>
             array (
                 0 => __DIR__ . '/..' . '/rackspace/php-opencloud/lib',
             ),
         ),
-        'G' => 
+        'G' =>
         array (
-            'Guzzle\\Tests' => 
+            'Guzzle\\Tests' =>
             array (
                 0 => __DIR__ . '/..' . '/guzzle/guzzle/tests',
             ),
-            'Guzzle' => 
+            'Guzzle' =>
             array (
                 0 => __DIR__ . '/..' . '/guzzle/guzzle/src',
             ),
         ),
-        'C' => 
+        'C' =>
         array (
-            'Console' => 
+            'Console' =>
             array (
                 0 => __DIR__ . '/..' . '/pear/console_getopt',
             ),
         ),
-        'A' => 
+        'A' =>
         array (
-            'Archive_Tar' => 
+            'Archive_Tar' =>
             array (
                 0 => __DIR__ . '/..' . '/pear/archive_tar',
             ),
@@ -368,6 +366,7 @@ class ComposerStaticInitbd9daef8d5e05de248b6db9492444827
         'Aws\\Credentials\\AssumeRoleCredentialProvider' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/Credentials/AssumeRoleCredentialProvider.php',
         'Aws\\Credentials\\AssumeRoleWithWebIdentityCredentialProvider' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/Credentials/AssumeRoleWithWebIdentityCredentialProvider.php',
         'Aws\\Credentials\\CredentialProvider' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/Credentials/CredentialProvider.php',
+        'Aws\\Credentials\\CredentialSources' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/Credentials/CredentialSources.php',
         'Aws\\Credentials\\Credentials' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/Credentials/Credentials.php',
         'Aws\\Credentials\\CredentialsInterface' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/Credentials/CredentialsInterface.php',
         'Aws\\Credentials\\CredentialsUtils' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/Credentials/CredentialsUtils.php',
@@ -479,6 +478,7 @@ class ComposerStaticInitbd9daef8d5e05de248b6db9492444827
         'Aws\\Kms\\Exception\\KmsException' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/Kms/Exception/KmsException.php',
         'Aws\\Kms\\KmsClient' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/Kms/KmsClient.php',
         'Aws\\LruArrayCache' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/LruArrayCache.php',
+        'Aws\\MetricsBuilder' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/MetricsBuilder.php',
         'Aws\\Middleware' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/Middleware.php',
         'Aws\\MockHandler' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/MockHandler.php',
         'Aws\\MonitoringEventsInterface' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/MonitoringEventsInterface.php',
@@ -525,12 +525,17 @@ class ComposerStaticInitbd9daef8d5e05de248b6db9492444827
         'Aws\\S3\\Exception\\PermanentRedirectException' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/S3/Exception/PermanentRedirectException.php',
         'Aws\\S3\\Exception\\S3Exception' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/S3/Exception/S3Exception.php',
         'Aws\\S3\\Exception\\S3MultipartUploadException' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/S3/Exception/S3MultipartUploadException.php',
+        'Aws\\S3\\ExpiresParsingMiddleware' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/S3/ExpiresParsingMiddleware.php',
         'Aws\\S3\\GetBucketLocationParser' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/S3/GetBucketLocationParser.php',
         'Aws\\S3\\MultipartCopy' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/S3/MultipartCopy.php',
         'Aws\\S3\\MultipartUploader' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/S3/MultipartUploader.php',
         'Aws\\S3\\MultipartUploadingTrait' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/S3/MultipartUploadingTrait.php',
         'Aws\\S3\\ObjectCopier' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/S3/ObjectCopier.php',
         'Aws\\S3\\ObjectUploader' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/S3/ObjectUploader.php',
+        'Aws\\S3\\Parser\\GetBucketLocationResultMutator' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/S3/Parser/GetBucketLocationResultMutator.php',
+        'Aws\\S3\\Parser\\S3Parser' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/S3/Parser/S3Parser.php',
+        'Aws\\S3\\Parser\\S3ResultMutator' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/S3/Parser/S3ResultMutator.php',
+        'Aws\\S3\\Parser\\ValidateResponseChecksumResultMutator' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/S3/Parser/ValidateResponseChecksumResultMutator.php',
         'Aws\\S3\\PermanentRedirectMiddleware' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/S3/PermanentRedirectMiddleware.php',
         'Aws\\S3\\PostObject' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/S3/PostObject.php',
         'Aws\\S3\\PostObjectV4' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/S3/PostObjectV4.php',
@@ -584,6 +589,7 @@ class ComposerStaticInitbd9daef8d5e05de248b6db9492444827
         'Aws\\Token\\TokenInterface' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/Token/TokenInterface.php',
         'Aws\\Token\\TokenProvider' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/Token/TokenProvider.php',
         'Aws\\TraceMiddleware' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/TraceMiddleware.php',
+        'Aws\\UserAgentMiddleware' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/UserAgentMiddleware.php',
         'Aws\\Waiter' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/Waiter.php',
         'Aws\\WrappedHttpHandler' => __DIR__ . '/..' . '/aws/aws-sdk-php/src/WrappedHttpHandler.php',
         'BackWPup' => __DIR__ . '/../..' . '/backwpup.php',
@@ -5881,8 +5887,10 @@ class ComposerStaticInitbd9daef8d5e05de248b6db9492444827
         'GuzzleHttp\\Psr7\\BufferStream' => __DIR__ . '/..' . '/guzzlehttp/psr7/src/BufferStream.php',
         'GuzzleHttp\\Psr7\\CachingStream' => __DIR__ . '/..' . '/guzzlehttp/psr7/src/CachingStream.php',
         'GuzzleHttp\\Psr7\\DroppingStream' => __DIR__ . '/..' . '/guzzlehttp/psr7/src/DroppingStream.php',
+        'GuzzleHttp\\Psr7\\Exception\\MalformedUriException' => __DIR__ . '/..' . '/guzzlehttp/psr7/src/Exception/MalformedUriException.php',
         'GuzzleHttp\\Psr7\\FnStream' => __DIR__ . '/..' . '/guzzlehttp/psr7/src/FnStream.php',
         'GuzzleHttp\\Psr7\\Header' => __DIR__ . '/..' . '/guzzlehttp/psr7/src/Header.php',
+        'GuzzleHttp\\Psr7\\HttpFactory' => __DIR__ . '/..' . '/guzzlehttp/psr7/src/HttpFactory.php',
         'GuzzleHttp\\Psr7\\InflateStream' => __DIR__ . '/..' . '/guzzlehttp/psr7/src/InflateStream.php',
         'GuzzleHttp\\Psr7\\LazyOpenStream' => __DIR__ . '/..' . '/guzzlehttp/psr7/src/LazyOpenStream.php',
         'GuzzleHttp\\Psr7\\LimitStream' => __DIR__ . '/..' . '/guzzlehttp/psr7/src/LimitStream.php',
@@ -6144,159 +6152,6 @@ class ComposerStaticInitbd9daef8d5e05de248b6db9492444827
         'Guzzle\\Stream\\Stream' => __DIR__ . '/..' . '/guzzle/guzzle/src/Guzzle/Stream/Stream.php',
         'Guzzle\\Stream\\StreamInterface' => __DIR__ . '/..' . '/guzzle/guzzle/src/Guzzle/Stream/StreamInterface.php',
         'Guzzle\\Stream\\StreamRequestFactoryInterface' => __DIR__ . '/..' . '/guzzle/guzzle/src/Guzzle/Stream/StreamRequestFactoryInterface.php',
-        'Guzzle\\Tests\\Batch\\AbstractBatchDecoratorTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Batch/AbstractBatchDecoratorTest.php',
-        'Guzzle\\Tests\\Batch\\BatchBuilderTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Batch/BatchBuilderTest.php',
-        'Guzzle\\Tests\\Batch\\BatchClosureDivisorTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Batch/BatchClosureDivisorTest.php',
-        'Guzzle\\Tests\\Batch\\BatchClosureTransferTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Batch/BatchClosureTransferTest.php',
-        'Guzzle\\Tests\\Batch\\BatchCommandTransferTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Batch/BatchCommandTransferTest.php',
-        'Guzzle\\Tests\\Batch\\BatchRequestTransferTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Batch/BatchRequestTransferTest.php',
-        'Guzzle\\Tests\\Batch\\BatchSizeDivisorTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Batch/BatchSizeDivisorTest.php',
-        'Guzzle\\Tests\\Batch\\BatchTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Batch/BatchTest.php',
-        'Guzzle\\Tests\\Batch\\ExceptionBufferingBatchTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Batch/ExceptionBufferingBatchTest.php',
-        'Guzzle\\Tests\\Batch\\FlushingBatchTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Batch/FlushingBatchTest.php',
-        'Guzzle\\Tests\\Batch\\HistoryBatchTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Batch/HistoryBatchTest.php',
-        'Guzzle\\Tests\\Batch\\NotifyingBatchTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Batch/NotifyingBatchTest.php',
-        'Guzzle\\Tests\\Cache\\CacheAdapterFactoryTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Cache/CacheAdapterFactoryTest.php',
-        'Guzzle\\Tests\\Cache\\CacheAdapterTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Cache/CacheAdapterTest.php',
-        'Guzzle\\Tests\\Cache\\ClosureCacheAdapterTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Cache/ClosureCacheAdapterTest.php',
-        'Guzzle\\Tests\\Cache\\Zf2CacheAdapterTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Cache/Zf2CacheAdapterTest.php',
-        'Guzzle\\Tests\\Common\\CollectionTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Common/CollectionTest.php',
-        'Guzzle\\Tests\\Common\\EventTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Common/EventTest.php',
-        'Guzzle\\Tests\\Common\\Exception\\BatchTransferExceptionTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Common/Exception/BatchTransferExceptionTest.php',
-        'Guzzle\\Tests\\Common\\Exception\\ExceptionCollectionTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Common/Exception/ExceptionCollectionTest.php',
-        'Guzzle\\Tests\\Common\\VersionTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Common/VersionTest.php',
-        'Guzzle\\Tests\\GuzzleTestCase' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/GuzzleTestCase.php',
-        'Guzzle\\Tests\\Http\\AbstractEntityBodyDecoratorTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Http/AbstractEntityBodyDecoratorTest.php',
-        'Guzzle\\Tests\\Http\\CachingEntityBodyTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Http/CachingEntityBodyTest.php',
-        'Guzzle\\Tests\\Http\\ClientTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Http/ClientTest.php',
-        'Guzzle\\Tests\\Http\\Curl\\CurlHandleTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Http/Curl/CurlHandleTest.php',
-        'Guzzle\\Tests\\Http\\Curl\\CurlMultiProxyTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Http/Curl/CurlMultiProxyTest.php',
-        'Guzzle\\Tests\\Http\\Curl\\CurlMultiTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Http/Curl/CurlMultiTest.php',
-        'Guzzle\\Tests\\Http\\Curl\\CurlVersionTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Http/Curl/CurlVersionTest.php',
-        'Guzzle\\Tests\\Http\\Curl\\RequestMediatorTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Http/Curl/RequestMediatorTest.php',
-        'Guzzle\\Tests\\Http\\EntityBodyTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Http/EntityBodyTest.php',
-        'Guzzle\\Tests\\Http\\Exception\\CurlExceptionTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Http/Exception/CurlExceptionTest.php',
-        'Guzzle\\Tests\\Http\\Exception\\ExceptionTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Http/Exception/ExceptionTest.php',
-        'Guzzle\\Tests\\Http\\Exception\\MultiTransferExceptionTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Http/Exception/MultiTransferExceptionTest.php',
-        'Guzzle\\Tests\\Http\\IoEmittingEntityBodyTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Http/IoEmittingEntityBodyTest.php',
-        'Guzzle\\Tests\\Http\\Message\\AbstractMessageTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Http/Message/AbstractMessageTest.php',
-        'Guzzle\\Tests\\Http\\Message\\EntityEnclosingRequestTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Http/Message/EntityEnclosingRequestTest.php',
-        'Guzzle\\Tests\\Http\\Message\\HeaderComparison' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Http/Message/HeaderComparison.php',
-        'Guzzle\\Tests\\Http\\Message\\HeaderTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Http/Message/HeaderTest.php',
-        'Guzzle\\Tests\\Http\\Message\\Header\\HeaderFactoryTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Http/Message/Header/HeaderFactoryTest.php',
-        'Guzzle\\Tests\\Http\\Message\\Header\\LinkTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Http/Message/Header/LinkTest.php',
-        'Guzzle\\Tests\\Http\\Message\\PostFileTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Http/Message/PostFileTest.php',
-        'Guzzle\\Tests\\Http\\Message\\RequestTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Http/Message/RequestTest.php',
-        'Guzzle\\Tests\\Http\\MimetypesTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Http/MimetypesTest.php',
-        'Guzzle\\Tests\\Http\\QueryStringTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Http/QueryStringTest.php',
-        'Guzzle\\Tests\\Http\\ReadLimitEntityBodyTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Http/ReadLimitEntityBodyTest.php',
-        'Guzzle\\Tests\\Http\\Server' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Http/Server.php',
-        'Guzzle\\Tests\\Http\\UrlTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Http/UrlTest.php',
-        'Guzzle\\Tests\\Inflection\\InflectorTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Inflection/InflectorTest.php',
-        'Guzzle\\Tests\\Inflection\\MemoizingInflectorTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Inflection/MemoizingInflectorTest.php',
-        'Guzzle\\Tests\\Inflection\\PreComputedInflectorTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Inflection/PreComputedInflectorTest.php',
-        'Guzzle\\Tests\\Iterator\\AppendIteratorTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Iterator/AppendIteratorTest.php',
-        'Guzzle\\Tests\\Iterator\\ChunkedIteratorTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Iterator/ChunkedIteratorTest.php',
-        'Guzzle\\Tests\\Iterator\\FilterIteratorTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Iterator/FilterIteratorTest.php',
-        'Guzzle\\Tests\\Iterator\\MapIteratorTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Iterator/MapIteratorTest.php',
-        'Guzzle\\Tests\\Iterator\\MethodProxyIteratorTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Iterator/MethodProxyIteratorTest.php',
-        'Guzzle\\Tests\\Log\\ArrayLogAdapterTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Log/ArrayLogAdapterTest.php',
-        'Guzzle\\Tests\\Log\\ClosureLogAdapterTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Log/ClosureLogAdapterTest.php',
-        'Guzzle\\Tests\\Log\\MessageFormatterTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Log/MessageFormatterTest.php',
-        'Guzzle\\Tests\\Log\\PsrLogAdapterTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Log/PsrLogAdapterTest.php',
-        'Guzzle\\Tests\\Log\\Zf2LogAdapterTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Log/Zf2LogAdapterTest.php',
-        'Guzzle\\Tests\\Mock\\CustomResponseModel' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Mock/CustomResponseModel.php',
-        'Guzzle\\Tests\\Mock\\ErrorResponseMock' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Mock/ErrorResponseMock.php',
-        'Guzzle\\Tests\\Mock\\ExceptionMock' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Mock/ExceptionMock.php',
-        'Guzzle\\Tests\\Mock\\MockMulti' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Mock/MockMulti.php',
-        'Guzzle\\Tests\\Mock\\MockObserver' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Mock/MockObserver.php',
-        'Guzzle\\Tests\\Mock\\MockSubject' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Mock/MockSubject.php',
-        'Guzzle\\Tests\\Parser\\Cookie\\CookieParserProvider' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Parser/Cookie/CookieParserProvider.php',
-        'Guzzle\\Tests\\Parser\\Cookie\\CookieParserTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Parser/Cookie/CookieParserTest.php',
-        'Guzzle\\Tests\\Parser\\Message\\MessageParserProvider' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Parser/Message/MessageParserProvider.php',
-        'Guzzle\\Tests\\Parser\\Message\\MessageParserTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Parser/Message/MessageParserTest.php',
-        'Guzzle\\Tests\\Parser\\Message\\PeclHttpMessageParserTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Parser/Message/PeclHttpMessageParserTest.php',
-        'Guzzle\\Tests\\Parser\\ParserRegistryTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Parser/ParserRegistryTest.php',
-        'Guzzle\\Tests\\Plugin\\Async\\AsyncPluginTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Plugin/Async/AsyncPluginTest.php',
-        'Guzzle\\Tests\\Plugin\\Backoff\\AbstractBackoffStrategyTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Plugin/Backoff/AbstractBackoffStrategyTest.php',
-        'Guzzle\\Tests\\Plugin\\Backoff\\BackoffLoggerTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Plugin/Backoff/BackoffLoggerTest.php',
-        'Guzzle\\Tests\\Plugin\\Backoff\\BackoffPluginTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Plugin/Backoff/BackoffPluginTest.php',
-        'Guzzle\\Tests\\Plugin\\Backoff\\CallbackBackoffStrategyTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Plugin/Backoff/CallbackBackoffStrategyTest.php',
-        'Guzzle\\Tests\\Plugin\\Backoff\\ConstantBackoffStrategyTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Plugin/Backoff/ConstantBackoffStrategyTest.php',
-        'Guzzle\\Tests\\Plugin\\Backoff\\CurlBackoffStrategyTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Plugin/Backoff/CurlBackoffStrategyTest.php',
-        'Guzzle\\Tests\\Plugin\\Backoff\\ExponentialBackoffStrategyTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Plugin/Backoff/ExponentialBackoffStrategyTest.php',
-        'Guzzle\\Tests\\Plugin\\Backoff\\HttpBackoffStrategyTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Plugin/Backoff/HttpBackoffStrategyTest.php',
-        'Guzzle\\Tests\\Plugin\\Backoff\\LinearBackoffStrategyTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Plugin/Backoff/LinearBackoffStrategyTest.php',
-        'Guzzle\\Tests\\Plugin\\Backoff\\ReasonPhraseBackoffStrategyTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Plugin/Backoff/ReasonPhraseBackoffStrategyTest.php',
-        'Guzzle\\Tests\\Plugin\\Backoff\\TruncatedBackoffStrategyTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Plugin/Backoff/TruncatedBackoffStrategyTest.php',
-        'Guzzle\\Tests\\Plugin\\Cache\\CachePluginTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Plugin/Cache/CachePluginTest.php',
-        'Guzzle\\Tests\\Plugin\\Cache\\CallbackCanCacheStrategyTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Plugin/Cache/CallbackCanCacheStrategyTest.php',
-        'Guzzle\\Tests\\Plugin\\Cache\\DefaultCacheStorageTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Plugin/Cache/DefaultCacheStorageTest.php',
-        'Guzzle\\Tests\\Plugin\\Cache\\DefaultCanCacheStrategyTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Plugin/Cache/DefaultCanCacheStrategyTest.php',
-        'Guzzle\\Tests\\Plugin\\Cache\\DefaultRevalidationTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Plugin/Cache/DefaultRevalidationTest.php',
-        'Guzzle\\Tests\\Plugin\\Cache\\DenyRevalidationTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Plugin/Cache/DenyRevalidationTest.php',
-        'Guzzle\\Tests\\Plugin\\Cache\\SkipRevalidationTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Plugin/Cache/SkipRevalidationTest.php',
-        'Guzzle\\Tests\\Plugin\\Cookie\\CookieJar\\ArrayCookieJarTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Plugin/Cookie/CookieJar/ArrayCookieJarTest.php',
-        'Guzzle\\Tests\\Plugin\\Cookie\\CookieJar\\FileCookieJarTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Plugin/Cookie/CookieJar/FileCookieJarTest.php',
-        'Guzzle\\Tests\\Plugin\\Cookie\\CookiePluginTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Plugin/Cookie/CookiePluginTest.php',
-        'Guzzle\\Tests\\Plugin\\Cookie\\CookieTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Plugin/Cookie/CookieTest.php',
-        'Guzzle\\Tests\\Plugin\\CurlAuth\\CurlAuthPluginTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Plugin/CurlAuth/CurlAuthPluginTest.php',
-        'Guzzle\\Tests\\Plugin\\ErrorResponse\\ErrorResponsePluginTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Plugin/ErrorResponse/ErrorResponsePluginTest.php',
-        'Guzzle\\Tests\\Plugin\\History\\HistoryPluginTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Plugin/History/HistoryPluginTest.php',
-        'Guzzle\\Tests\\Plugin\\Log\\LogPluginTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Plugin/Log/LogPluginTest.php',
-        'Guzzle\\Tests\\Plugin\\Md5\\CommandContentMd5PluginTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Plugin/Md5/CommandContentMd5PluginTest.php',
-        'Guzzle\\Tests\\Plugin\\Md5\\Md5ValidatorPluginTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Plugin/Md5/Md5ValidatorPluginTest.php',
-        'Guzzle\\Tests\\Plugin\\Mock\\MockPluginTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Plugin/Mock/MockPluginTest.php',
-        'Guzzle\\Tests\\Plugin\\Oauth\\OauthPluginTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Plugin/Oauth/OauthPluginTest.php',
-        'Guzzle\\Tests\\Service\\AbstractConfigLoaderTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/AbstractConfigLoaderTest.php',
-        'Guzzle\\Tests\\Service\\Builder\\ServiceBuilderLoaderTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Builder/ServiceBuilderLoaderTest.php',
-        'Guzzle\\Tests\\Service\\CachingConfigLoaderTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/CachingConfigLoaderTest.php',
-        'Guzzle\\Tests\\Service\\ClientTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/ClientTest.php',
-        'Guzzle\\Tests\\Service\\Command\\AbstractCommandTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Command/AbstractCommandTest.php',
-        'Guzzle\\Tests\\Service\\Command\\ClosureCommandTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Command/ClosureCommandTest.php',
-        'Guzzle\\Tests\\Service\\Command\\CommandTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Command/CommandTest.php',
-        'Guzzle\\Tests\\Service\\Command\\DefaultRequestSerializerTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Command/DefaultRequestSerializerTest.php',
-        'Guzzle\\Tests\\Service\\Command\\DefaultResponseParserTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Command/DefaultResponseParserTest.php',
-        'Guzzle\\Tests\\Service\\Command\\LocationVisitor\\Request\\AbstractVisitorTestCase' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Command/LocationVisitor/Request/AbstractVisitorTestCase.php',
-        'Guzzle\\Tests\\Service\\Command\\LocationVisitor\\Request\\BodyVisitorTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Command/LocationVisitor/Request/BodyVisitorTest.php',
-        'Guzzle\\Tests\\Service\\Command\\LocationVisitor\\Request\\HeaderVisitorTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Command/LocationVisitor/Request/HeaderVisitorTest.php',
-        'Guzzle\\Tests\\Service\\Command\\LocationVisitor\\Request\\JsonVisitorTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Command/LocationVisitor/Request/JsonVisitorTest.php',
-        'Guzzle\\Tests\\Service\\Command\\LocationVisitor\\Request\\PostFieldVisitorTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Command/LocationVisitor/Request/PostFieldVisitorTest.php',
-        'Guzzle\\Tests\\Service\\Command\\LocationVisitor\\Request\\PostFileVisitorTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Command/LocationVisitor/Request/PostFileVisitorTest.php',
-        'Guzzle\\Tests\\Service\\Command\\LocationVisitor\\Request\\QueryVisitorTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Command/LocationVisitor/Request/QueryVisitorTest.php',
-        'Guzzle\\Tests\\Service\\Command\\LocationVisitor\\Request\\ResponseBodyVisitorTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Command/LocationVisitor/Request/ResponseBodyVisitorTest.php',
-        'Guzzle\\Tests\\Service\\Command\\LocationVisitor\\Request\\XmlVisitorTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Command/LocationVisitor/Request/XmlVisitorTest.php',
-        'Guzzle\\Tests\\Service\\Command\\LocationVisitor\\Response\\AbstractResponseVisitorTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Command/LocationVisitor/Response/AbstractResponseVisitorTest.php',
-        'Guzzle\\Tests\\Service\\Command\\LocationVisitor\\Response\\BodyVisitorTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Command/LocationVisitor/Response/BodyVisitorTest.php',
-        'Guzzle\\Tests\\Service\\Command\\LocationVisitor\\Response\\HeaderVisitorTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Command/LocationVisitor/Response/HeaderVisitorTest.php',
-        'Guzzle\\Tests\\Service\\Command\\LocationVisitor\\Response\\JsonVisitorTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Command/LocationVisitor/Response/JsonVisitorTest.php',
-        'Guzzle\\Tests\\Service\\Command\\LocationVisitor\\Response\\ReasonPhraseVisitorTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Command/LocationVisitor/Response/ReasonPhraseVisitorTest.php',
-        'Guzzle\\Tests\\Service\\Command\\LocationVisitor\\Response\\StatusCodeVisitorTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Command/LocationVisitor/Response/StatusCodeVisitorTest.php',
-        'Guzzle\\Tests\\Service\\Command\\LocationVisitor\\Response\\XmlVisitorTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Command/LocationVisitor/Response/XmlVisitorTest.php',
-        'Guzzle\\Tests\\Service\\Command\\OperationCommandTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Command/OperationCommandTest.php',
-        'Guzzle\\Tests\\Service\\Command\\OperationResponseParserTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Command/OperationResponseParserTest.php',
-        'Guzzle\\Tests\\Service\\Description\\OperationTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Description/OperationTest.php',
-        'Guzzle\\Tests\\Service\\Description\\ParameterTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Description/ParameterTest.php',
-        'Guzzle\\Tests\\Service\\Description\\SchemaFormatterTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Description/SchemaFormatterTest.php',
-        'Guzzle\\Tests\\Service\\Description\\SchemaValidatorTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Description/SchemaValidatorTest.php',
-        'Guzzle\\Tests\\Service\\Description\\ServiceDescriptionLoaderTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Description/ServiceDescriptionLoaderTest.php',
-        'Guzzle\\Tests\\Service\\Description\\ServiceDescriptionTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Description/ServiceDescriptionTest.php',
-        'Guzzle\\Tests\\Service\\Exception\\CommandTransferExceptionTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Exception/CommandTransferExceptionTest.php',
-        'Guzzle\\Tests\\Service\\Exception\\InconsistentClientTransferExceptionTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Exception/InconsistentClientTransferExceptionTest.php',
-        'Guzzle\\Tests\\Service\\Exception\\ValidationExceptionTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Exception/ValidationExceptionTest.php',
-        'Guzzle\\Tests\\Service\\Mock\\Command\\IterableCommand' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Mock/Command/IterableCommand.php',
-        'Guzzle\\Tests\\Service\\Mock\\Command\\MockCommand' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Mock/Command/MockCommand.php',
-        'Guzzle\\Tests\\Service\\Mock\\Command\\OtherCommand' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Mock/Command/OtherCommand.php',
-        'Guzzle\\Tests\\Service\\Mock\\Command\\Sub\\Sub' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Mock/Command/Sub/Sub.php',
-        'Guzzle\\Tests\\Service\\Mock\\MockClient' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Mock/MockClient.php',
-        'Guzzle\\Tests\\Service\\Mock\\Model\\MockCommandIterator' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Mock/Model/MockCommandIterator.php',
-        'Guzzle\\Tests\\Service\\Resource\\CompositeResourceIteratorFactoryTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Resource/CompositeResourceIteratorFactoryTest.php',
-        'Guzzle\\Tests\\Service\\Resource\\MapResourceIteratorFactoryTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Resource/MapResourceIteratorFactoryTest.php',
-        'Guzzle\\Tests\\Service\\Resource\\ModelTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Resource/ModelTest.php',
-        'Guzzle\\Tests\\Service\\Resource\\ResourceIteratorClassFactoryTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Resource/ResourceIteratorClassFactoryTest.php',
-        'Guzzle\\Tests\\Service\\Resource\\ResourceIteratorTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Service/Resource/ResourceIteratorTest.php',
-        'Guzzle\\Tests\\Stream\\PhpStreamRequestFactoryTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Stream/PhpStreamRequestFactoryTest.php',
-        'Guzzle\\Tests\\Stream\\StreamTest' => __DIR__ . '/..' . '/guzzle/guzzle/tests/Guzzle/Tests/Stream/StreamTest.php',
         'Inpsyde\\Assert\\Assert' => __DIR__ . '/..' . '/inpsyde/assert/src/Assert.php',
         'Inpsyde\\BackWPupShared\\File\\MimeTypeExtractor' => __DIR__ . '/..' . '/inpsyde/backwpup-shared/src/File/MimeTypeExtractor.php',
         'Inpsyde\\BackWPup\\Archiver\\Archive' => __DIR__ . '/..' . '/inpsyde/backwpup-archiver/src/Archive.php',
@@ -6332,6 +6187,8 @@ class ComposerStaticInitbd9daef8d5e05de248b6db9492444827
         'Inpsyde\\BackWPup\\Infrastructure\\Restore\\LogDownloader\\ZipGenerator' => __DIR__ . '/../..' . '/src/Infrastructure/Restore/LogDownloader/ZipGenerator.php',
         'Inpsyde\\BackWPup\\Infrastructure\\Restore\\Notificator' => __DIR__ . '/../..' . '/src/Infrastructure/Restore/Notificator.php',
         'Inpsyde\\BackWPup\\Infrastructure\\Restore\\Restore' => __DIR__ . '/../..' . '/src/Infrastructure/Restore/Restore.php',
+        'Inpsyde\\BackWPup\\Infrastructure\\Restore\\RestoreCleanupLogger' => __DIR__ . '/../..' . '/src/Infrastructure/Restore/RestoreCleanupLogger.php',
+        'Inpsyde\\BackWPup\\Infrastructure\\Restore\\StaleRestoreFilesNotice' => __DIR__ . '/../..' . '/src/Infrastructure/Restore/StaleRestoreFilesNotice.php',
         'Inpsyde\\BackWPup\\Infrastructure\\Restore\\TemplateLoader' => __DIR__ . '/../..' . '/src/Infrastructure/Restore/TemplateLoader.php',
         'Inpsyde\\BackWPup\\Infrastructure\\Security\\EncryptionStream' => __DIR__ . '/../..' . '/src/Infrastructure/Security/EncryptionStream.php',
         'Inpsyde\\BackWPup\\Infrastructure\\Xml\\Exception\\InvalidWxrFileException' => __DIR__ . '/../..' . '/src/Infrastructure/Xml/Exception/InvalidWxrFileException.php',
@@ -6343,6 +6200,7 @@ class ComposerStaticInitbd9daef8d5e05de248b6db9492444827
         'Inpsyde\\BackWPup\\Notice\\EasycronUpdateNotice' => __DIR__ . '/../..' . '/inc/Notice/EasycronUpdateNotice.php',
         'Inpsyde\\BackWPup\\Notice\\EnvironmentNotice' => __DIR__ . '/../..' . '/inc/Notice/EnvironmentNotice.php',
         'Inpsyde\\BackWPup\\Notice\\EvaluateNotice' => __DIR__ . '/../..' . '/inc/Notice/EvaluateNotice.php',
+        'Inpsyde\\BackWPup\\Notice\\MissingCurlNotice' => __DIR__ . '/../..' . '/inc/Notice/MissingCurlNotice.php',
         'Inpsyde\\BackWPup\\Notice\\Notice' => __DIR__ . '/../..' . '/inc/Notice/Notice.php',
         'Inpsyde\\BackWPup\\Notice\\NoticeMessage' => __DIR__ . '/../..' . '/inc/Notice/NoticeMessage.php',
         'Inpsyde\\BackWPup\\Notice\\NoticeView' => __DIR__ . '/../..' . '/inc/Notice/NoticeView.php',
@@ -6407,12 +6265,16 @@ class ComposerStaticInitbd9daef8d5e05de248b6db9492444827
         'Inpsyde\\Restore\\Api\\Module\\Session\\NotificableStorableSessionInterface' => __DIR__ . '/..' . '/inpsyde/backwpup-restore-shared/src/Api/Module/Session/NotificableStorableSessionInterface.php',
         'Inpsyde\\Restore\\Api\\Module\\Session\\NotificationInterface' => __DIR__ . '/..' . '/inpsyde/backwpup-restore-shared/src/Api/Module/Session/NotificationInterface.php',
         'Inpsyde\\Restore\\Api\\Module\\Session\\Session' => __DIR__ . '/..' . '/inpsyde/backwpup-restore-shared/src/Api/Module/Session/Session.php',
+        'Inpsyde\\Restore\\Api\\Module\\Translation\\RestoreTranslation' => __DIR__ . '/..' . '/inpsyde/backwpup-restore-shared/src/Api/Module/Translation/RestoreTranslation.php',
+        'Inpsyde\\Restore\\Api\\Module\\Translation\\TranslationInterface' => __DIR__ . '/..' . '/inpsyde/backwpup-restore-shared/src/Api/Module/Translation/TranslationInterface.php',
         'Inpsyde\\Restore\\Api\\Module\\Upload\\BackupUpload' => __DIR__ . '/..' . '/inpsyde/backwpup-restore-shared/src/Api/Module/Upload/BackupUpload.php',
         'Inpsyde\\Restore\\Api\\Module\\Upload\\FileUploadInterface' => __DIR__ . '/..' . '/inpsyde/backwpup-restore-shared/src/Api/Module/Upload/FileUploadInterface.php',
         'Inpsyde\\Restore\\Api\\Module\\Upload\\UploadException' => __DIR__ . '/..' . '/inpsyde/backwpup-restore-shared/src/Api/Module/Upload/UploadException.php',
         'Inpsyde\\Restore\\DestinationFactory' => __DIR__ . '/..' . '/inpsyde/backwpup-restore-shared/src/DestinationFactory.php',
         'Inpsyde\\Restore\\EventSource' => __DIR__ . '/..' . '/inpsyde/backwpup-restore-shared/src/EventSource.php',
         'Inpsyde\\Restore\\Infrastructure\\EventSourceTrait' => __DIR__ . '/..' . '/inpsyde/backwpup-restore-shared/src/Infrastructure/EventSourceTrait.php',
+        'Inpsyde\\Restore\\Infrastructure\\Restore\\RestoreCleaner' => __DIR__ . '/..' . '/inpsyde/backwpup-restore-shared/src/Infrastructure/Restore/RestoreCleaner.php',
+        'Inpsyde\\Restore\\Infrastructure\\Restore\\WorkingDirectoryProtector' => __DIR__ . '/..' . '/inpsyde/backwpup-restore-shared/src/Infrastructure/Restore/WorkingDirectoryProtector.php',
         'Inpsyde\\Restore\\LocalizeScripts' => __DIR__ . '/..' . '/inpsyde/backwpup-restore-shared/src/LocalizeScripts.php',
         'Inpsyde\\Restore\\Log\\FileReader' => __DIR__ . '/..' . '/inpsyde/backwpup-restore-shared/src/Log/FileReader.php',
         'Inpsyde\\Restore\\Log\\LevelExtractor' => __DIR__ . '/..' . '/inpsyde/backwpup-restore-shared/src/Log/LevelExtractor.php',
@@ -6437,6 +6299,7 @@ class ComposerStaticInitbd9daef8d5e05de248b6db9492444827
         'JmesPath\\Utils' => __DIR__ . '/..' . '/mtdowling/jmespath.php/src/Utils.php',
         'Krizalys\\Onedrive\\Client' => __DIR__ . '/..' . '/krizalys/onedrive-php-sdk/src/Client.php',
         'Krizalys\\Onedrive\\ClientState' => __DIR__ . '/..' . '/krizalys/onedrive-php-sdk/src/ClientState.php',
+        'Krizalys\\Onedrive\\ConflictBehavior' => __DIR__ . '/..' . '/krizalys/onedrive-php-sdk/src/ConflictBehavior.php',
         'Krizalys\\Onedrive\\Constant\\AccessTokenStatus' => __DIR__ . '/..' . '/krizalys/onedrive-php-sdk/src/Constant/AccessTokenStatus.php',
         'Krizalys\\Onedrive\\Constant\\ConflictBehavior' => __DIR__ . '/..' . '/krizalys/onedrive-php-sdk/src/Constant/ConflictBehavior.php',
         'Krizalys\\Onedrive\\Constant\\DriveType' => __DIR__ . '/..' . '/krizalys/onedrive-php-sdk/src/Constant/DriveType.php',
@@ -6461,7 +6324,11 @@ class ComposerStaticInitbd9daef8d5e05de248b6db9492444827
         'Krizalys\\Onedrive\\Definition\\ResourceDefinitionInterface' => __DIR__ . '/..' . '/krizalys/onedrive-php-sdk/src/Definition/ResourceDefinitionInterface.php',
         'Krizalys\\Onedrive\\Definition\\ServiceDefinition' => __DIR__ . '/..' . '/krizalys/onedrive-php-sdk/src/Definition/ServiceDefinition.php',
         'Krizalys\\Onedrive\\Definition\\ServiceDefinitionInterface' => __DIR__ . '/..' . '/krizalys/onedrive-php-sdk/src/Definition/ServiceDefinitionInterface.php',
+        'Krizalys\\Onedrive\\DriveItem' => __DIR__ . '/..' . '/krizalys/onedrive-php-sdk/src/DriveItem.php',
         'Krizalys\\Onedrive\\Exception\\ConflictException' => __DIR__ . '/..' . '/krizalys/onedrive-php-sdk/src/Exception/ConflictException.php',
+        'Krizalys\\Onedrive\\File' => __DIR__ . '/..' . '/krizalys/onedrive-php-sdk/src/File.php',
+        'Krizalys\\Onedrive\\Folder' => __DIR__ . '/..' . '/krizalys/onedrive-php-sdk/src/Folder.php',
+        'Krizalys\\Onedrive\\NameConflictBehavior' => __DIR__ . '/..' . '/krizalys/onedrive-php-sdk/src/NameConflictBehavior.php',
         'Krizalys\\Onedrive\\Onedrive' => __DIR__ . '/..' . '/krizalys/onedrive-php-sdk/src/Onedrive.php',
         'Krizalys\\Onedrive\\Parameter\\Injector\\FlatInjector' => __DIR__ . '/..' . '/krizalys/onedrive-php-sdk/src/Parameter/Injector/FlatInjector.php',
         'Krizalys\\Onedrive\\Parameter\\Injector\\HierarchicalInjector' => __DIR__ . '/..' . '/krizalys/onedrive-php-sdk/src/Parameter/Injector/HierarchicalInjector.php',
@@ -8193,6 +8060,7 @@ class ComposerStaticInitbd9daef8d5e05de248b6db9492444827
         'Microsoft\\Graph\\Model\\ResponseStatus' => __DIR__ . '/..' . '/microsoft/microsoft-graph/src/Model/ResponseStatus.php',
         'Microsoft\\Graph\\Model\\ResponseType' => __DIR__ . '/..' . '/microsoft/microsoft-graph/src/Model/ResponseType.php',
         'Microsoft\\Graph\\Model\\RestoreAction' => __DIR__ . '/..' . '/microsoft/microsoft-graph/src/Model/RestoreAction.php',
+        'Microsoft\\Graph\\Model\\RestrictedSignIn' => __DIR__ . '/..' . '/microsoft/microsoft-graph/src/Model/RestrictedSignIn.php',
         'Microsoft\\Graph\\Model\\ResultInfo' => __DIR__ . '/..' . '/microsoft/microsoft-graph/src/Model/ResultInfo.php',
         'Microsoft\\Graph\\Model\\ResultTemplate' => __DIR__ . '/..' . '/microsoft/microsoft-graph/src/Model/ResultTemplate.php',
         'Microsoft\\Graph\\Model\\ResultTemplateDictionary' => __DIR__ . '/..' . '/microsoft/microsoft-graph/src/Model/ResultTemplateDictionary.php',
@@ -9148,7 +9016,6 @@ class ComposerStaticInitbd9daef8d5e05de248b6db9492444827
         'Monolog\\Registry' => __DIR__ . '/..' . '/monolog/monolog/src/Monolog/Registry.php',
         'Monolog\\ResettableInterface' => __DIR__ . '/..' . '/monolog/monolog/src/Monolog/ResettableInterface.php',
         'Monolog\\SignalHandler' => __DIR__ . '/..' . '/monolog/monolog/src/Monolog/SignalHandler.php',
-        'Monolog\\Test\\TestCase' => __DIR__ . '/..' . '/monolog/monolog/src/Monolog/Test/TestCase.php',
         'Monolog\\Utils' => __DIR__ . '/..' . '/monolog/monolog/src/Monolog/Utils.php',
         'OS_Guess' => __DIR__ . '/..' . '/pear/pear-core-minimal/src/OS/Guess.php',
         'OpenCloud\\Autoscale\\Resource\\AbstractResource' => __DIR__ . '/..' . '/rackspace/php-opencloud/lib/OpenCloud/Autoscale/Resource/AbstractResource.php',
@@ -9541,15 +9408,18 @@ class ComposerStaticInitbd9daef8d5e05de248b6db9492444827
         'Stringable' => __DIR__ . '/..' . '/symfony/polyfill-php80/Resources/stubs/Stringable.php',
         'Symfony\\Component\\EventDispatcher\\Attribute\\AsEventListener' => __DIR__ . '/..' . '/symfony/event-dispatcher/Attribute/AsEventListener.php',
         'Symfony\\Component\\EventDispatcher\\Debug\\TraceableEventDispatcher' => __DIR__ . '/..' . '/symfony/event-dispatcher/Debug/TraceableEventDispatcher.php',
+        'Symfony\\Component\\EventDispatcher\\Debug\\TraceableEventDispatcherInterface' => __DIR__ . '/..' . '/symfony/event-dispatcher/Debug/TraceableEventDispatcherInterface.php',
         'Symfony\\Component\\EventDispatcher\\Debug\\WrappedListener' => __DIR__ . '/..' . '/symfony/event-dispatcher/Debug/WrappedListener.php',
         'Symfony\\Component\\EventDispatcher\\DependencyInjection\\AddEventAliasesPass' => __DIR__ . '/..' . '/symfony/event-dispatcher/DependencyInjection/AddEventAliasesPass.php',
         'Symfony\\Component\\EventDispatcher\\DependencyInjection\\RegisterListenersPass' => __DIR__ . '/..' . '/symfony/event-dispatcher/DependencyInjection/RegisterListenersPass.php',
+        'Symfony\\Component\\EventDispatcher\\Event' => __DIR__ . '/..' . '/symfony/event-dispatcher/Event.php',
         'Symfony\\Component\\EventDispatcher\\EventDispatcher' => __DIR__ . '/..' . '/symfony/event-dispatcher/EventDispatcher.php',
         'Symfony\\Component\\EventDispatcher\\EventDispatcherInterface' => __DIR__ . '/..' . '/symfony/event-dispatcher/EventDispatcherInterface.php',
         'Symfony\\Component\\EventDispatcher\\EventSubscriberInterface' => __DIR__ . '/..' . '/symfony/event-dispatcher/EventSubscriberInterface.php',
         'Symfony\\Component\\EventDispatcher\\GenericEvent' => __DIR__ . '/..' . '/symfony/event-dispatcher/GenericEvent.php',
         'Symfony\\Component\\EventDispatcher\\ImmutableEventDispatcher' => __DIR__ . '/..' . '/symfony/event-dispatcher/ImmutableEventDispatcher.php',
         'Symfony\\Component\\EventDispatcher\\LegacyEventDispatcherProxy' => __DIR__ . '/..' . '/symfony/event-dispatcher/LegacyEventDispatcherProxy.php',
+        'Symfony\\Component\\EventDispatcher\\LegacyEventProxy' => __DIR__ . '/..' . '/symfony/event-dispatcher/LegacyEventProxy.php',
         'Symfony\\Component\\OptionsResolver\\Debug\\OptionsResolverIntrospector' => __DIR__ . '/..' . '/symfony/options-resolver/Debug/OptionsResolverIntrospector.php',
         'Symfony\\Component\\OptionsResolver\\Exception\\AccessException' => __DIR__ . '/..' . '/symfony/options-resolver/Exception/AccessException.php',
         'Symfony\\Component\\OptionsResolver\\Exception\\ExceptionInterface' => __DIR__ . '/..' . '/symfony/options-resolver/Exception/ExceptionInterface.php',
@@ -9738,6 +9608,7 @@ class ComposerStaticInitbd9daef8d5e05de248b6db9492444827
         'phpseclib3\\Exception\\InvalidPacketLengthException' => __DIR__ . '/..' . '/phpseclib/phpseclib/phpseclib/Exception/InvalidPacketLengthException.php',
         'phpseclib3\\Exception\\NoKeyLoadedException' => __DIR__ . '/..' . '/phpseclib/phpseclib/phpseclib/Exception/NoKeyLoadedException.php',
         'phpseclib3\\Exception\\NoSupportedAlgorithmsException' => __DIR__ . '/..' . '/phpseclib/phpseclib/phpseclib/Exception/NoSupportedAlgorithmsException.php',
+        'phpseclib3\\Exception\\TimeoutException' => __DIR__ . '/..' . '/phpseclib/phpseclib/phpseclib/Exception/TimeoutException.php',
         'phpseclib3\\Exception\\UnableToConnectException' => __DIR__ . '/..' . '/phpseclib/phpseclib/phpseclib/Exception/UnableToConnectException.php',
         'phpseclib3\\Exception\\UnsupportedAlgorithmException' => __DIR__ . '/..' . '/phpseclib/phpseclib/phpseclib/Exception/UnsupportedAlgorithmException.php',
         'phpseclib3\\Exception\\UnsupportedCurveException' => __DIR__ . '/..' . '/phpseclib/phpseclib/phpseclib/Exception/UnsupportedCurveException.php',
@@ -9902,6 +9773,7 @@ class ComposerStaticInitbd9daef8d5e05de248b6db9492444827
         'phpseclib3\\Math\\Common\\FiniteField\\Integer' => __DIR__ . '/..' . '/phpseclib/phpseclib/phpseclib/Math/Common/FiniteField/Integer.php',
         'phpseclib3\\Math\\PrimeField' => __DIR__ . '/..' . '/phpseclib/phpseclib/phpseclib/Math/PrimeField.php',
         'phpseclib3\\Math\\PrimeField\\Integer' => __DIR__ . '/..' . '/phpseclib/phpseclib/phpseclib/Math/PrimeField/Integer.php',
+        'phpseclib3\\Net\\SCP' => __DIR__ . '/..' . '/phpseclib/phpseclib/phpseclib/Net/SCP.php',
         'phpseclib3\\Net\\SFTP' => __DIR__ . '/..' . '/phpseclib/phpseclib/phpseclib/Net/SFTP.php',
         'phpseclib3\\Net\\SFTP\\Stream' => __DIR__ . '/..' . '/phpseclib/phpseclib/phpseclib/Net/SFTP/Stream.php',
         'phpseclib3\\Net\\SSH2' => __DIR__ . '/..' . '/phpseclib/phpseclib/phpseclib/Net/SSH2.php',
