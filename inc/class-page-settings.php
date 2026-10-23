@@ -463,10 +463,12 @@ class BackWPup_Page_Settings
         update_site_option('backwpup_cfg_protectfolders', true);
 
         if (isset($_POST['jobrunauthkey'])) {
-            update_site_option(
-                'backwpup_cfg_jobrunauthkey',
-                preg_replace('/[^a-zA-Z0-9]/', '', trim(sanitize_text_field(wp_unslash((string) $_POST['jobrunauthkey']))))
-            );
+            $jobrunauthkey = preg_replace('/[^a-zA-Z0-9]/', '', trim(sanitize_text_field(wp_unslash((string) $_POST['jobrunauthkey']))));
+            // An empty key disables external job starts, so always keep a key.
+            if ($jobrunauthkey === '') {
+                $jobrunauthkey = wp_generate_password(8, false);
+            }
+            update_site_option('backwpup_cfg_jobrunauthkey', $jobrunauthkey);
         }
 
         if (isset($_POST['logfolder'])) {
@@ -496,6 +498,7 @@ class BackWPup_Page_Settings
             if (!is_array($authentication)) {
                 $authentication = [];
             }
+            $old_user_id = isset($authentication['user_id']) ? (int) $authentication['user_id'] : 0;
             $authentication_method = sanitize_text_field(wp_unslash((string) $_POST['authentication_method']));
             $authentication['method'] = in_array(
                 $authentication_method,
@@ -517,6 +520,9 @@ class BackWPup_Page_Settings
             delete_site_transient('backwpup_cookies');
             if (!empty($authentication['user_id'])) {
                 delete_site_transient('backwpup_cookies_' . (int) $authentication['user_id']);
+            }
+            if ($old_user_id && $old_user_id !== (int) $authentication['user_id']) {
+                delete_site_transient('backwpup_cookies_' . $old_user_id);
             }
 
             $this->test_basic_authentication($authentication);
