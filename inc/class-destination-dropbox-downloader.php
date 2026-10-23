@@ -47,7 +47,9 @@ final class BackWPup_Destination_Dropbox_Downloader implements BackWPup_Destinat
      */
     public function __destruct()
     {
-        fclose($this->local_file_handler);
+        if (is_resource($this->local_file_handler)) {
+            fclose($this->local_file_handler);
+        }
     }
 
     /**
@@ -57,19 +59,16 @@ final class BackWPup_Destination_Dropbox_Downloader implements BackWPup_Destinat
     {
         $this->local_file_handler($start_byte);
 
-        try {
-            $data = $this->dropbox_api->download(
-                ['path' => $this->data->source_file_path()],
-                $start_byte,
-                $end_byte
-            );
+        $data = $this->dropbox_api->download(
+            ['path' => $this->data->source_file_path()],
+            $start_byte,
+            $end_byte
+        );
 
-            $bytes = (int) fwrite($this->local_file_handler, (string) $data);
-            if ($bytes === 0) {
-                throw new \RuntimeException(__('Could not write data to file.', 'backwpup'));
-            }
-        } catch (\Exception $e) {
-            BackWPup_Admin::message('Dropbox: ' . $e->getMessage());
+        $bytes = (int) fwrite($this->local_file_handler, (string) $data);
+        if ($bytes === 0) {
+            // Let the downloader report the error instead of silently producing a broken file.
+            throw new \RuntimeException(__('Could not write data to file.', 'backwpup'));
         }
     }
 
@@ -80,7 +79,11 @@ final class BackWPup_Destination_Dropbox_Downloader implements BackWPup_Destinat
     {
         $metadata = $this->dropbox_api->filesGetMetadata(['path' => $this->data->source_file_path()]);
 
-        return $metadata['size'];
+        if (!is_array($metadata) || !isset($metadata['size'])) {
+            throw new \RuntimeException(__('Could not get the size of the backup file from Dropbox.', 'backwpup'));
+        }
+
+        return (int) $metadata['size'];
     }
 
     /**

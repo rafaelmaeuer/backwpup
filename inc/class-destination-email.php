@@ -263,13 +263,14 @@ class BackWPup_Destination_Email extends BackWPup_Destinations
             if (is_object($phpmailer)) {
                 do_action_ref_array('phpmailer_init', [&$phpmailer]);
                 //get settings from PHPMailer
-                $emailmethod = $phpmailer->Mailer;
-                $emailsendmail = $phpmailer->Sendmail;
-                $emailhost = $phpmailer->Host;
-                $emailhostport = $phpmailer->Port;
-                $emailsecure = $phpmailer->SMTPSecure;
-                $emailuser = $phpmailer->Username;
-                $emailpass = $phpmailer->Password;
+                $phpmailer_vars = get_object_vars($phpmailer);
+                $emailmethod = $phpmailer_vars['Mailer'] ?? $emailmethod;
+                $emailsendmail = $phpmailer_vars['Sendmail'] ?? $emailsendmail;
+                $emailhost = $phpmailer_vars['Host'] ?? $emailhost;
+                $emailhostport = $phpmailer_vars['Port'] ?? $emailhostport;
+                $emailsecure = $phpmailer_vars['SMTPSecure'] ?? $emailsecure;
+                $emailuser = $phpmailer_vars['Username'] ?? $emailuser;
+                $emailpass = $phpmailer_vars['Password'] ?? $emailpass;
             }
         } else {
             $emailmethod = $job_object->job['emailmethod'];
@@ -312,8 +313,11 @@ class BackWPup_Destination_Email extends BackWPup_Destinations
                 }
             } elseif ($emailmethod == 'sendmail') {
                 // Verify command
-                if (preg_match('/^[a-zA-Z0-9-_.\/\\\'" ]+$/', $emailsendmail) === 0) {
-                $job_object->log('The sendmail command has invalid characters.', E_USER_ERROR);
+                // Note: the hyphen must be last in the character class, otherwise "9-_" is a range that
+                // allows shell meta characters like ";", "<" and ">".
+                if (preg_match('/^[a-zA-Z0-9_.\/\\\'" -]+$/', $emailsendmail) === 0) {
+                    // Never execute a sendmail command containing unexpected characters.
+                    throw new Exception(__('The sendmail command has invalid characters.', 'backwpup'));
                 }
                 $transport = Swift_SendmailTransport::newInstance($emailsendmail);
             } else {
@@ -387,17 +391,18 @@ class BackWPup_Destination_Email extends BackWPup_Destinations
             if (is_object($phpmailer)) {
                 do_action_ref_array('phpmailer_init', [&$phpmailer]);
                 //get settings from PHPMailer
-                $emailmethod = $phpmailer->Mailer;
-                $emailsendmail = $phpmailer->Sendmail;
-                $emailhost = $phpmailer->Host;
-                $emailhostport = $phpmailer->Port;
-                $emailsecure = $phpmailer->SMTPSecure;
-                $emailuser = $phpmailer->Username;
-                $emailpass = $phpmailer->Password;
+                $phpmailer_vars = get_object_vars($phpmailer);
+                $emailmethod = $phpmailer_vars['Mailer'] ?? $emailmethod;
+                $emailsendmail = $phpmailer_vars['Sendmail'] ?? $emailsendmail;
+                $emailhost = $phpmailer_vars['Host'] ?? $emailhost;
+                $emailhostport = $phpmailer_vars['Port'] ?? $emailhostport;
+                $emailsecure = $phpmailer_vars['SMTPSecure'] ?? $emailsecure;
+                $emailuser = $phpmailer_vars['Username'] ?? $emailuser;
+                $emailpass = $phpmailer_vars['Password'] ?? $emailpass;
             }
         } else {
             $emailmethod = sanitize_text_field($_POST['emailmethod']);
-            $emailsendmail = sanitize_email($_POST['emailsendmail']);
+            $emailsendmail = sanitize_text_field(wp_unslash($_POST['emailsendmail'] ?? ''));
             $emailhost = sanitize_text_field($_POST['emailhost']);
             $emailhostport = absint($_POST['emailhostport']);
             $emailsecure = sanitize_text_field($_POST['emailsecure']);
@@ -433,6 +438,10 @@ class BackWPup_Destination_Email extends BackWPup_Destinations
                     $transport->setEncryption('tls');
                 }
             } elseif ($emailmethod == 'sendmail') {
+                // Never execute a sendmail command containing unexpected characters.
+                if (preg_match('/^[a-zA-Z0-9_.\/\\\'" -]+$/', (string) $emailsendmail) === 0) {
+                    throw new Exception(__('The sendmail command has invalid characters.', 'backwpup'));
+                }
                 $transport = Swift_SendmailTransport::newInstance($emailsendmail);
             } else {
                 $transport = Swift_MailTransport::newInstance();
@@ -442,13 +451,16 @@ class BackWPup_Destination_Email extends BackWPup_Destinations
 
             // Create a message
             $message = Swift_Message::newInstance(__('BackWPup archive sending TEST Message', 'backwpup'));
-            $message->setFrom([$_POST['emailsndemail'] => sanitize_email($_POST['emailsndemailname'])]);
-            $message->setTo($this->get_email_array($_POST['emailaddress']));
+            $sender_email = isset($_POST['emailsndemail']) ? sanitize_email(wp_unslash($_POST['emailsndemail'])) : '';
+            $sender_name = isset($_POST['emailsndemailname']) ? sanitize_text_field(wp_unslash($_POST['emailsndemailname'])) : '';
+            $recipients = isset($_POST['emailaddress']) ? $this->get_email_array(wp_unslash($_POST['emailaddress'])) : [];
+            $message->setFrom([$sender_email => $sender_name]);
+            $message->setTo($recipients);
             $message->setBody(__('If this message reaches your inbox, sending backup archives via email should work for you.', 'backwpup'));
             // Send the message
             $result = $emailer->send($message);
         } catch (Exception $e) {
-            echo '<span id="emailsendtext" class="bwu-message-error">Swift Mailer: ' . $e->getMessage() . '</span>';
+            echo '<span id="emailsendtext" class="bwu-message-error">Swift Mailer: ' . esc_html($e->getMessage()) . '</span>';
         }
 
         if (isset($mbEncoding)) {
@@ -487,7 +499,8 @@ class BackWPup_Destination_Email extends BackWPup_Destinations
     private function getPhpMailer()
     {
         global $phpmailer, $wp_version;
-        if (!is_object($phpmailer) || !$phpmailer instanceof PHPMailer) {
+        // Since WP 5.5 the global mailer is an instance of the namespaced PHPMailer class.
+        if (!is_object($phpmailer) || !($phpmailer instanceof \PHPMailer\PHPMailer\PHPMailer || $phpmailer instanceof \PHPMailer)) {
             if (version_compare($wp_version, '5.5', '>=')) {
                 require_once ABSPATH . WPINC . '/PHPMailer/PHPMailer.php';
 

@@ -43,8 +43,12 @@ final class BackWPup_Destination_Folder_Downloader implements BackWPup_Destinati
      */
     public function __destruct()
     {
-        fclose($this->local_file_handler);
-        fclose($this->source_file_handler);
+        if (is_resource($this->local_file_handler)) {
+            fclose($this->local_file_handler);
+        }
+        if (is_resource($this->source_file_handler)) {
+            fclose($this->source_file_handler);
+        }
     }
 
     /**
@@ -57,7 +61,7 @@ final class BackWPup_Destination_Folder_Downloader implements BackWPup_Destinati
         }
 
         $data = fread($this->source_file_handler, $end_byte - $start_byte + 1);
-        if (!$data) {
+        if ($data === false) {
             throw new Exception(__('Could not read data from source file.', 'backwpup'));
         }
 

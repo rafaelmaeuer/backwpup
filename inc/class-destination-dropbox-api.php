@@ -88,7 +88,7 @@ class BackWPup_Destination_Dropbox_API
      *
      * @throws BackWPup_Destination_Dropbox_API_Exception
      */
-    public function __construct($boxtype = 'dropbox', BackWPup_Job $jobObject = null)
+    public function __construct($boxtype = 'dropbox', ?BackWPup_Job $jobObject = null)
     {
         if ($boxtype === 'dropbox') {
             $this->oauthAppKey = get_site_option(
@@ -141,7 +141,10 @@ class BackWPup_Destination_Dropbox_API
 
         while ($result['has_more'] === true) {
             $result = $this->filesListFolderContinue($args);
-            $files = array_merge($files, $result['entries']);
+            if (!is_array($result) || !isset($result['entries'])) {
+                break;
+            }
+            $files = array_merge($files, (array) $result['entries']);
             $args['cursor'] = $result['cursor'];
         }
 
@@ -243,10 +246,11 @@ class BackWPup_Destination_Dropbox_API
             $chunkUploadTime = microtime(
                 true
             ) - $chunkUploadStart;
-            $this->jobObject->steps_data[$this->jobObject->step_working]['totalread'] += strlen($data);
+            $chunkBytes = strlen($data);
+            $this->jobObject->steps_data[$this->jobObject->step_working]['totalread'] += $chunkBytes;
 
-            //args for next chunk
-            $this->jobObject->steps_data[$this->jobObject->step_working]['offset'] += $chunkSize;
+            //args for next chunk (advance by the bytes really sent, the last chunk is usually smaller)
+            $this->jobObject->steps_data[$this->jobObject->step_working]['offset'] += $chunkBytes;
             if ($this->jobObject->job['backuptype'] === 'archive') {
                 $this->jobObject->substeps_done = $this->jobObject->steps_data[$this->jobObject->step_working]['offset'];
                 if (strlen($data) == $chunkSize) {
@@ -606,7 +610,7 @@ class BackWPup_Destination_Dropbox_API
             $error = $e->getError();
 
             // See if we can fix the error first
-            if ($error['.tag'] === 'incorrect_offset') {
+            if (is_array($error) && ($error['.tag'] ?? '') === 'incorrect_offset') {
                 $args['cursor']['offset'] = $error['correct_offset'];
 
                 return $this->request(
@@ -617,7 +621,9 @@ class BackWPup_Destination_Dropbox_API
             }
 
             // Otherwise, can't fix
-            $this->handleFilesUploadSessionLookupError($error);
+            $this->handleFilesUploadSessionLookupError($error, E_USER_ERROR);
+
+            return null;
         }
     }
 
@@ -636,8 +642,8 @@ class BackWPup_Destination_Dropbox_API
             return $this->request('files/upload_session/finish', $args, 'upload');
         } catch (BackWPup_Destination_Dropbox_API_Request_Exception $e) {
             $error = $e->getError();
-            if ($error['.tag'] === 'lookup_failed') {
-                if ($error['lookup_failed']['.tag'] === 'incorrect_offset') {
+            if (is_array($error) && ($error['.tag'] ?? '') === 'lookup_failed') {
+                if (($error['lookup_failed']['.tag'] ?? '') === 'incorrect_offset') {
                     $args['cursor']['offset'] = $error['lookup_failed']['correct_offset'];
 
                     return $this->request('files/upload_session/finish', $args, 'upload');
@@ -959,8 +965,8 @@ class BackWPup_Destination_Dropbox_API
                             '(%1$s) An unknown error has occurred. Response from server: %2$s',
                             'backwpup'
                         ),
-                        $response->getStatusCode(),
-                        $response->getBody()->getContents()
+                        esc_html((string) $response->getStatusCode()),
+                        esc_html($response->getBody()->getContents())
                     )
                 );
         }
@@ -984,7 +990,7 @@ class BackWPup_Destination_Dropbox_API
                     'backwpup'
                 ),
                 $response->getStatusCode(),
-                $response->getBody()->getContents()
+                esc_html($response->getBody()->getContents())
             )
         );
     }
@@ -1004,7 +1010,7 @@ class BackWPup_Destination_Dropbox_API
                     '(400) Bad input parameter. Response from server: %s',
                     'backwpup'
                 ),
-                $response->getBody()->getContents()
+                esc_html($response->getBody()->getContents())
             )
         );
     }
@@ -1018,8 +1024,9 @@ class BackWPup_Destination_Dropbox_API
      */
     protected function handle401Error(ResponseInterface $response)
     {
-        $error = json_decode($response->getBody()->getContents(), true);
-        if ($error['error']['.tag'] === 'expired_access_token') {
+        $body = (string) $response->getBody();
+        $error = json_decode($body, true);
+        if (is_array($error) && ($error['error']['.tag'] ?? '') === 'expired_access_token') {
             $this->refresh($this->oauthToken['refresh_token']);
         } else {
             throw new BackWPup_Destination_Dropbox_API_Exception(
@@ -1028,7 +1035,7 @@ class BackWPup_Destination_Dropbox_API
                         '(401) Bad or expired token. Response from server: %s',
                         'backwpup'
                     ),
-                    $error['error']['.tag']
+                    esc_html(is_array($error) && is_scalar($error['error']['.tag'] ?? null) ? (string) $error['error']['.tag'] : $body)
                 )
             );
         }
@@ -1043,11 +1050,13 @@ class BackWPup_Destination_Dropbox_API
      */
     protected function handle403Error(ResponseInterface $response)
     {
-        $error = json_decode($response->getBody(), true);
+        $body = (string) $response->getBody();
+        $error = json_decode($body, true);
+        $error = is_array($error) ? $error : [];
 
-        if ($error['error']['.tag'] === 'invalid_account_type') {
+        if (($error['error']['.tag'] ?? '') === 'invalid_account_type') {
             // InvalidAccountTypeError
-            if ($error['error']['invalid_account_type']['.tag'] === 'endpoint') {
+            if (($error['error']['invalid_account_type']['.tag'] ?? '') === 'endpoint') {
                 throw new BackWPup_Destination_Dropbox_API_Exception(
                     __(
                         '(403) You do not have permission to access this endpoint.',
@@ -1055,7 +1064,7 @@ class BackWPup_Destination_Dropbox_API
                     )
                 );
             }
-            if ($error['error']['invalid_account_type']['.tag'] === 'feature') {
+            if (($error['error']['invalid_account_type']['.tag'] ?? '') === 'feature') {
                 throw new BackWPup_Destination_Dropbox_API_Exception(
                     __(
                         '(403) You do not have permission to access this feature.',
@@ -1072,7 +1081,7 @@ class BackWPup_Destination_Dropbox_API
                     '(403) You do not have permission to access this resource. Response from server: %s',
                     'backwpup'
                 ),
-                $error['error_summary']
+                esc_html(is_scalar($error['error_summary'] ?? null) ? (string) $error['error_summary'] : $body)
             )
         );
     }
@@ -1086,7 +1095,10 @@ class BackWPup_Destination_Dropbox_API
      */
     protected function handle409Error(ResponseInterface $response)
     {
-        $error = json_decode($response->getBody(), true);
+        $body = (string) $response->getBody();
+        $error = json_decode($body, true);
+        $error = is_array($error) ? $error : [];
+        $summary = is_scalar($error['error_summary'] ?? null) ? (string) $error['error_summary'] : $body;
 
         throw new BackWPup_Destination_Dropbox_API_Request_Exception(
             sprintf(
@@ -1094,11 +1106,11 @@ class BackWPup_Destination_Dropbox_API
                     '(409) Endpoint-specific error. Response from server: %s',
                     'backwpup'
                 ),
-                $error['error_summary']
+                esc_html($summary)
             ),
-            $response->getStatusCode(),
+            (int) $response->getStatusCode(),
             null,
-            $error['error']
+            is_array($error['error'] ?? null) ? $error['error'] : []
         );
     }
 
@@ -1183,7 +1195,7 @@ class BackWPup_Destination_Dropbox_API
 
     private function handleFilesDeleteError($error)
     {
-        switch ($error['.tag']) {
+        switch (is_array($error) ? ($error['.tag'] ?? '') : '') {
             case 'path_lookup':
                 $this->handleFilesLookupError($error['path_lookup']);
                 break;
@@ -1193,153 +1205,154 @@ class BackWPup_Destination_Dropbox_API
                 break;
 
             case 'other':
-                trigger_error('Could not delete file.', E_USER_WARNING);
+                $this->log_api_message('Could not delete file.', E_USER_WARNING);
                 break;
         }
     }
 
     private function handleFilesGetMetadataError($error)
     {
-        switch ($error['.tag']) {
+        switch (is_array($error) ? ($error['.tag'] ?? '') : '') {
             case 'path':
                 $this->handleFilesLookupError($error['path']);
                 break;
 
             case 'other':
-                trigger_error('Cannot look up file metadata.', E_USER_WARNING);
+                $this->log_api_message('Cannot look up file metadata.', E_USER_WARNING);
                 break;
         }
     }
 
     private function handleFilesGetTemporaryLinkError($error)
     {
-        switch ($error['.tag']) {
+        switch (is_array($error) ? ($error['.tag'] ?? '') : '') {
             case 'path':
                 $this->handleFilesLookupError($error['path']);
                 break;
 
             case 'other':
-                trigger_error('Cannot get temporary link.', E_USER_WARNING);
+                $this->log_api_message('Cannot get temporary link.', E_USER_WARNING);
                 break;
         }
     }
 
     private function handleFilesListFolderError($error)
     {
-        switch ($error['.tag']) {
+        switch (is_array($error) ? ($error['.tag'] ?? '') : '') {
             case 'path':
                 $this->handleFilesLookupError($error['path']);
                 break;
 
             case 'other':
-                trigger_error('Cannot list files in folder.', E_USER_WARNING);
+                $this->log_api_message('Cannot list files in folder.', E_USER_WARNING);
                 break;
         }
     }
 
     private function handleFilesListFolderContinueError($error)
     {
-        switch ($error['.tag']) {
+        switch (is_array($error) ? ($error['.tag'] ?? '') : '') {
             case 'path':
                 $this->handleFilesLookupError($error['path']);
                 break;
 
             case 'reset':
-                trigger_error('This cursor has been invalidated.', E_USER_WARNING);
+                $this->log_api_message('This cursor has been invalidated.', E_USER_WARNING);
                 break;
 
             case 'other':
-                trigger_error('Cannot list files in folder.', E_USER_WARNING);
+                $this->log_api_message('Cannot list files in folder.', E_USER_WARNING);
                 break;
         }
     }
 
     private function handleFilesLookupError($error)
     {
-        switch ($error['.tag']) {
+        switch (is_array($error) ? ($error['.tag'] ?? '') : '') {
             case 'malformed_path':
-                trigger_error('The path was malformed.', E_USER_WARNING);
+                $this->log_api_message('The path was malformed.', E_USER_WARNING);
                 break;
 
             case 'not_found':
-                trigger_error('File could not be found.', E_USER_WARNING);
+                $this->log_api_message('File could not be found.', E_USER_WARNING);
                 break;
 
             case 'not_file':
-                trigger_error('That is not a file.', E_USER_WARNING);
+                $this->log_api_message('That is not a file.', E_USER_WARNING);
                 break;
 
             case 'not_folder':
-                trigger_error('That is not a folder.', E_USER_WARNING);
+                $this->log_api_message('That is not a folder.', E_USER_WARNING);
                 break;
 
             case 'restricted_content':
-                trigger_error('This content is restricted.', E_USER_WARNING);
+                $this->log_api_message('This content is restricted.', E_USER_WARNING);
                 break;
 
             case 'invalid_path_root':
-                trigger_error('Path root is invalid.', E_USER_WARNING);
+                $this->log_api_message('Path root is invalid.', E_USER_WARNING);
                 break;
 
             case 'other':
-                trigger_error('File could not be found.', E_USER_WARNING);
+                $this->log_api_message('File could not be found.', E_USER_WARNING);
                 break;
         }
     }
 
     private function handleFilesUploadSessionFinishError($error)
     {
-        switch ($error['.tag']) {
+        switch (is_array($error) ? ($error['.tag'] ?? '') : '') {
             case 'lookup_failed':
                 $this->handleFilesUploadSessionLookupError(
-                    $error['lookup_failed']
+                    $error['lookup_failed'],
+                    E_USER_ERROR
                 );
                 break;
 
             case 'path':
-                $this->handleFilesWriteError($error['path']);
+                $this->handleFilesWriteError($error['path'], E_USER_ERROR);
                 break;
 
             case 'too_many_shared_folder_targets':
-                trigger_error('Too many shared folder targets.', E_USER_WARNING);
+                $this->log_api_message('Too many shared folder targets.', E_USER_ERROR);
                 break;
 
-            case 'other':
-                trigger_error('The file could not be uploaded.', E_USER_WARNING);
+            default:
+                $this->log_api_message('The file could not be uploaded.', E_USER_ERROR);
                 break;
         }
     }
 
-    private function handleFilesUploadSessionLookupError($error)
+    private function handleFilesUploadSessionLookupError($error, int $level = E_USER_WARNING)
     {
-        switch ($error['.tag']) {
+        switch (is_array($error) ? ($error['.tag'] ?? '') : '') {
             case 'not_found':
-                trigger_error('Session not found.', E_USER_WARNING);
+                $this->log_api_message('Session not found.', $level);
                 break;
 
             case 'incorrect_offset':
-                trigger_error(
+                $this->log_api_message(
                     'Incorrect offset given. Correct offset is ' .
-                    intval($error['correct_offset']) . '.',
-                    E_USER_WARNING
+                    intval($error['correct_offset'] ?? 0) . '.',
+                    $level
                 );
                 break;
 
             case 'closed':
-                trigger_error(
+                $this->log_api_message(
                     'This session has been closed already.',
-                    E_USER_WARNING
+                    $level
                 );
                 break;
 
             case 'not_closed':
-                trigger_error('This session is not closed.', E_USER_WARNING);
+                $this->log_api_message('This session is not closed.', $level);
                 break;
 
-            case 'other':
-                trigger_error(
+            default:
+                $this->log_api_message(
                     'Could not look up the file session.',
-                    E_USER_WARNING
+                    $level
                 );
                 break;
         }
@@ -1347,28 +1360,58 @@ class BackWPup_Destination_Dropbox_API
 
     private function handleFilesUploadError($error)
     {
-        switch ($error['.tag']) {
+        if (!is_array($error) || empty($error['.tag'])) {
+            $this->log_api_message('There was an unknown error when uploading the file.', E_USER_ERROR);
+
+            return;
+        }
+
+        switch (is_array($error) ? ($error['.tag'] ?? '') : '') {
             case 'path':
-                $this->handleFilesUploadWriteFailed($error['path']);
+                if (!empty($error['reason']) && is_array($error['reason'])) {
+                    $this->handleFilesWriteError($error['reason'], E_USER_ERROR);
+                    break;
+                }
+                if (empty($error['path']) || !is_array($error['path'])) {
+                    $this->log_api_message('There was an unknown error when uploading the file.', E_USER_ERROR);
+                    break;
+                }
+                if (!empty($error['path']['reason']) && is_array($error['path']['reason'])) {
+                    $this->handleFilesUploadWriteFailed($error['path']);
+                    break;
+                }
+                $this->handleFilesWriteError($error['path'], E_USER_ERROR);
                 break;
 
-            case 'other':
-                trigger_error('There was an unknown error when uploading the file.', E_USER_WARNING);
+            default:
+                $this->log_api_message('There was an unknown error when uploading the file.', E_USER_ERROR);
                 break;
         }
     }
 
     private function handleFilesUploadWriteFailed($error)
     {
-        $this->handleFilesWriteError($error['reason']);
+        if (!is_array($error) || empty($error['reason']) || !is_array($error['reason'])) {
+            $this->log_api_message('There was an unknown error when uploading the file.', E_USER_ERROR);
+
+            return;
+        }
+
+        $this->handleFilesWriteError($error['reason'], E_USER_ERROR);
     }
 
-    private function handleFilesWriteError($error)
+    private function handleFilesWriteError($error, int $level = E_USER_WARNING)
     {
-        $message = '';
+        if (!is_array($error) || empty($error['.tag'])) {
+            $this->log_api_message('There was an unknown error when uploading the file.', $level);
+
+            return;
+        }
+
+        $message = 'There was an unknown error when uploading the file.';
 
         // Type of error
-        switch ($error['.tag']) {
+        switch (is_array($error) ? ($error['.tag'] ?? '') : '') {
             case 'malformed_path':
                 $message = 'The path was malformed.';
                 break;
@@ -1398,6 +1441,32 @@ class BackWPup_Destination_Dropbox_API
                 break;
         }
 
-        trigger_error($message, E_USER_WARNING); // phpcs:ignore
+        $this->log_api_message($message, $level);
+    }
+
+    /**
+     * Logs an API error message.
+     *
+     * Within a job the message goes to the job log (so upload failures are counted as errors).
+     * Outside of a job no PHP warning is raised anymore; an action is fired instead.
+     *
+     * @param string $message The message
+     * @param int    $level   The log level
+     */
+    private function log_api_message(string $message, int $level = E_USER_WARNING): void
+    {
+        if ($this->jobObject instanceof BackWPup_Job) {
+            $this->jobObject->log($message, $level);
+
+            return;
+        }
+
+        /**
+         * Fires when the Dropbox API emits a warning outside of a job context.
+         *
+         * @param string                           $message Warning message.
+         * @param BackWPup_Destination_Dropbox_API $client  API client instance.
+         */
+        do_action('backwpup_dropbox_api_warning', $message, $this);
     }
 }

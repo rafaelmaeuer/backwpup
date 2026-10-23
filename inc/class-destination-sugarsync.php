@@ -59,13 +59,13 @@ class BackWPup_Destination_SugarSync extends BackWPup_Destinations
                         echo '<span class="bwu-message-error">' . __('No Syncfolders found!', 'backwpup') . '</span>';
                     }
                 } catch (Exception $e) {
-                    echo '<span class="bwu-message-error">' . $e->getMessage() . '</span>';
+                    echo '<span class="bwu-message-error">' . esc_html($e->getMessage()) . '</span>';
                 }
         if (isset($syncfolders) && is_object($syncfolders)) {
             echo '<select name="sugarroot" id="sugarroot">';
 
             foreach ($syncfolders->collection as $roots) {
-                echo '<option ' . selected(strtolower((string) BackWPup_Option::get($jobid, 'sugarroot')), strtolower($roots->ref), false) . ' value="' . $roots->ref . '">' . $roots->displayName . '</option>';
+                echo '<option ' . selected(strtolower((string) BackWPup_Option::get($jobid, 'sugarroot')), strtolower((string) $roots->ref), false) . ' value="' . esc_attr((string) $roots->ref) . '">' . esc_html((string) $roots->displayName) . '</option>';
             }
             echo '</select>';
         } ?>
@@ -143,7 +143,7 @@ class BackWPup_Destination_SugarSync extends BackWPup_Destinations
         BackWPup_Option::update($jobid, 'sugardir', $_POST['sugardir']);
 
         BackWPup_Option::update($jobid, 'sugarroot', isset($_POST['sugarroot']) ? sanitize_text_field($_POST['sugarroot']) : '');
-        BackWPup_Option::update($jobid, 'sugarmaxbackups', isset($_POST['sugarmaxbackups']) ? absint($_POST['sugarmaxbackups']) : 0);
+        BackWPup_Option::update($jobid, 'sugarmaxbackups', isset($_POST['sugarmaxbackups']) && is_numeric($_POST['sugarmaxbackups']) ? absint($_POST['sugarmaxbackups']) : $this->option_defaults()['sugarmaxbackups']);
     }
 
     public function file_delete(string $jobdest, string $backupfile): void
@@ -153,28 +153,43 @@ class BackWPup_Destination_SugarSync extends BackWPup_Destinations
 
         if (BackWPup_Option::get($jobid, 'sugarrefreshtoken')) {
             try {
+                $backupfile_url = urldecode($backupfile);
+                if (!self::is_sugarsync_api_url($backupfile_url)) {
+                    throw new BackWPup_Destination_SugarSync_API_Exception(__('Invalid SugarSync file reference.', 'backwpup'));
+                }
                 $sugarsync = new BackWPup_Destination_SugarSync_API(BackWPup_Option::get($jobid, 'sugarrefreshtoken'));
-                $sugarsync->delete(urldecode($backupfile));
+                $sugarsync->delete($backupfile_url);
                 //update file list
-                foreach ($files as $key => $file) {
-                    if (is_array($file) && $file['file'] == $backupfile) {
-                        unset($files[$key]);
+                if (is_array($files)) {
+                    foreach ($files as $key => $file) {
+                        if (is_array($file) && $file['file'] == $backupfile) {
+                            unset($files[$key]);
+                        }
                     }
+                    set_site_transient('backwpup_' . strtolower($jobdest), $files, YEAR_IN_SECONDS);
                 }
                 unset($sugarsync);
             } catch (Exception $e) {
                 BackWPup_Admin::message('SUGARSYNC: ' . $e->getMessage(), true);
             }
         }
-
-        set_site_transient('backwpup_' . strtolower($jobdest), $files, YEAR_IN_SECONDS);
     }
 
     public function file_download(int $jobid, string $get_file, ?string $local_file_path = null): void
     {
+        // This destination handles the download itself, so it must check permissions on its own.
+        if (!current_user_can('backwpup_backups_download')) {
+            wp_die(esc_html__('Sorry, you don\'t have permissions to do that.', 'backwpup'), 403);
+        }
+
         try {
+            $file_url = urldecode($get_file);
+            // Only ever send the SugarSync access token to the SugarSync API.
+            if (!self::is_sugarsync_api_url($file_url)) {
+                throw new BackWPup_Destination_SugarSync_API_Exception(__('Invalid SugarSync file reference.', 'backwpup'));
+            }
+
             $sugarsync = new BackWPup_Destination_SugarSync_API(BackWPup_Option::get($jobid, 'sugarrefreshtoken'));
-            $response = $sugarsync->get(urldecode($get_file));
             if ($level = ob_get_level()) {
                 for ($i = 0; $i < $level; ++$i) {
                     ob_end_clean();
@@ -183,9 +198,20 @@ class BackWPup_Destination_SugarSync extends BackWPup_Destinations
 
             @set_time_limit(300);
 
-            $fh = fopen(untrailingslashit(BackWPup::get_plugin_data('temp')) . '/' . basename($local_file_path ?: $get_file), 'w');
-            fwrite($fh, $sugarsync->download(urldecode($get_file)));
+            $content = $sugarsync->download($file_url);
+            if (!is_string($content) || $content === '') {
+                throw new BackWPup_Destination_SugarSync_API_Exception(__('Could not write data to file. Empty source file.', 'backwpup'));
+            }
+
+            $fh = fopen(untrailingslashit(BackWPup::get_plugin_data('temp')) . '/' . basename($local_file_path ?: $get_file), 'wb');
+            if (!is_resource($fh)) {
+                throw new BackWPup_Destination_SugarSync_API_Exception(__('File could not be opened for writing.', 'backwpup'));
+            }
+            $bytes = fwrite($fh, $content);
             fclose($fh);
+            if (!$bytes) {
+                throw new BackWPup_Destination_SugarSync_API_Exception(__('Could not write data to file.', 'backwpup'));
+            }
 
             echo "event: message\n" .
                 'data: ' . wp_json_encode([
@@ -199,8 +225,42 @@ class BackWPup_Destination_SugarSync extends BackWPup_Destinations
 
             exit();
         } catch (Exception $e) {
-            exit($e->getMessage());
+            // Report the error to the backup downloader instead of printing raw text into the event stream.
+            echo "event: log\n" .
+                'data: ' . wp_json_encode([
+                    'state' => 'error',
+                    'message' => esc_html('SugarSync: ' . $e->getMessage()),
+                ]) . "\n\n";
+            flush();
+
+            exit();
         }
+    }
+
+    /**
+     * Converts an UTF-8 string to ISO-8859-1, like utf8_decode() (deprecated since PHP 8.2).
+     */
+    private static function utf8_to_latin1(string $value): string
+    {
+        if (function_exists('mb_convert_encoding')) {
+            return (string) mb_convert_encoding($value, 'ISO-8859-1', 'UTF-8');
+        }
+
+        return utf8_decode($value);
+    }
+
+    /**
+     * Checks that the given URL points to the SugarSync API.
+     *
+     * File references of SugarSync backups are full API URLs. As the access token is sent along
+     * with every request, only URLs of the SugarSync API are accepted.
+     */
+    private static function is_sugarsync_api_url(string $url): bool
+    {
+        $scheme = wp_parse_url($url, PHP_URL_SCHEME);
+        $host = wp_parse_url($url, PHP_URL_HOST);
+
+        return $scheme === 'https' && is_string($host) && strtolower($host) === 'api.sugarsync.com';
     }
 
     /**
@@ -225,12 +285,16 @@ class BackWPup_Destination_SugarSync extends BackWPup_Destinations
             if (!empty($user->nickname)) {
                 $job_object->log(sprintf(__('Authenticated to SugarSync with nickname %s', 'backwpup'), $user->nickname), E_USER_NOTICE);
             }
+            if (!is_object($user) || !isset($user->quota)) {
+                throw new BackWPup_Destination_SugarSync_API_Exception(__('Could not get the SugarSync user information.', 'backwpup'));
+            }
             $sugarsyncfreespase = (float) $user->quota->limit - (float) $user->quota->usage; //float fixes bug for display of no free space
             if ($job_object->backup_filesize > $sugarsyncfreespase) {
                 $job_object->log(sprintf(_x('Not enough disk space available on SugarSync. Available: %s.', 'Available space on SugarSync', 'backwpup'), size_format($sugarsyncfreespase, 2)), E_USER_ERROR);
                 $job_object->substeps_todo = 1 + $job_object->backup_filesize;
 
-                return true;
+                // The backup was not stored: report the step as failed.
+                return false;
             }
 
             $job_object->log(sprintf(__('%s available at SugarSync', 'backwpup'), size_format($sugarsyncfreespase, 2)), E_USER_NOTICE);
@@ -272,7 +336,7 @@ class BackWPup_Destination_SugarSync extends BackWPup_Destinations
             $getfiles = $sugarsync->getcontents('file');
             if (is_object($getfiles)) {
                 foreach ($getfiles->file as $getfile) {
-                    $getfile->displayName = utf8_decode((string) $getfile->displayName);
+                    $getfile->displayName = self::utf8_to_latin1((string) $getfile->displayName);
                     if ($this->is_backup_archive($getfile->displayName) && $this->is_backup_owned_by_job($getfile->displayName, $job_object->job['jobid']) == true) {
                         $backupfilelist[strtotime((string) $getfile->lastModified)] = (string) $getfile->ref;
                     }

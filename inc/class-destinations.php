@@ -96,13 +96,28 @@ abstract class BackWPup_Destinations
                     $destination
                 ): void {
                     // Setup Destination service and download file.
-                    $factory = new BackWPup_Destination_Downloader_Factory();
-                    $downloader = $factory->create(
-                        $destination,
-                        $jobid,
-                        $file_path,
-                        $filename
-                    );
+                    try {
+                        $factory = new BackWPup_Destination_Downloader_Factory();
+                        $downloader = $factory->create(
+                            $destination,
+                            $jobid,
+                            $file_path,
+                            $filename
+                        );
+                    } catch (\Exception $e) {
+                        // Connection/setup errors happen in the destination downloader constructor.
+                        // Report them to the backup downloader instead of a fatal error.
+                        echo "event: log\n";
+                        echo 'data: ' . wp_json_encode(
+                            [
+                                'state' => BackWPup_Destination_Downloader::STATE_ERROR,
+                                'message' => esc_html($e->getMessage()),
+                            ]
+                        ) . "\n\n";
+                        flush();
+
+                        exit();
+                    }
                     $downloader->download_by_chunks();
 
                     exit();
@@ -156,8 +171,20 @@ abstract class BackWPup_Destinations
      */
     public function is_backup_owned_by_job(string $file, int $jobid): bool
     {
-        $info = pathinfo($file);
-        $file = basename($file, '.' . $info['extension']);
+        // Only backup archives can belong to a job. This also avoids undefined index warnings
+        // for files without extension.
+        if (!$this->is_backup_archive($file)) {
+            return false;
+        }
+
+        // Strip the complete archive extension (also ".tar.gz", not only ".gz").
+        $file = basename($file);
+        foreach (self::EXTENSIONS as $extension) {
+            if (substr($file, -strlen($extension)) === $extension) {
+                $file = substr($file, 0, -strlen($extension));
+                break;
+            }
+        }
 
         // Try 10-character chunks first for base 32 and most of base 36
         $data = $this->getDecodedHashAndJobId($file, 10);

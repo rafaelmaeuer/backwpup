@@ -44,10 +44,13 @@ class BackWPup_Destination_Dropbox extends BackWPup_Destinations
         if (!empty($_GET['deleteauth'])) { // phpcs:ignore
             check_admin_referer('edit-job');
 
-            // Disable token on dropbox.
+            // Disable token on dropbox, but only if no other job uses the same authorization
+            // (e.g. a copied job). Revoking it would break the backups of the other jobs.
             try {
-                $dropbox = $this->get_dropbox($jobid);
-                $dropbox->authTokenRevoke();
+                if (!$this->is_token_used_by_other_job($jobid)) {
+                    $dropbox = $this->get_dropbox($jobid);
+                    $dropbox->authTokenRevoke();
+                }
             } catch (Exception $e) {
                 echo '<div id="message" class="bwu-message-error"><p>'
                     . sprintf(
@@ -225,7 +228,7 @@ class BackWPup_Destination_Dropbox extends BackWPup_Destinations
         BackWPup_Option::update(
             $jobid,
             'dropboxmaxbackups',
-            !empty($_POST['dropboxmaxbackups']) ? absint($_POST['dropboxmaxbackups']) : 0
+            isset($_POST['dropboxmaxbackups']) && is_numeric($_POST['dropboxmaxbackups']) ? absint($_POST['dropboxmaxbackups']) : $this->option_defaults()['dropboxmaxbackups']
         );
 
         $_POST['dropboxdir'] = trailingslashit(
@@ -324,7 +327,8 @@ class BackWPup_Destination_Dropbox extends BackWPup_Destinations
                 ksort($backupfilelist);
                 $numdeltefiles = 0;
 
-                while ($file = array_shift($backupfilelist)) {
+                while (!empty($backupfilelist)) {
+                    $file = array_shift($backupfilelist);
                     if (count($backupfilelist) < $job_object->job['dropboxmaxbackups']) {
                         break;
                     }
@@ -332,9 +336,12 @@ class BackWPup_Destination_Dropbox extends BackWPup_Destinations
                         ['path' => $job_object->job['dropboxdir'] . $file]
                     ); //delete files on Cloud
 
+                    // Dropbox returns paths with exactly one leading slash; the folder setting may or may not have one.
+                    $deleted_path = '/' . ltrim($job_object->job['dropboxdir'] . $file, '/');
                     foreach ($files as $key => $filedata) {
-                        if ($filedata['file'] == '/' . $job_object->job['dropboxdir'] . $file) {
+                        if (!empty($response) && strtolower((string) $filedata['file']) === strtolower($deleted_path)) {
                             unset($files[$key]);
+                            break;
                         }
                     }
                     ++$numdeltefiles;
@@ -387,13 +394,17 @@ class BackWPup_Destination_Dropbox extends BackWPup_Destinations
                     //Quota
                     if ($job_object->is_debug()) {
                         $quota = $dropbox->usersGetSpaceUsage();
-                        $dropboxfreespase = $quota['allocation']['allocated'] - $quota['used'];
-                        $job_object->log(
-                            sprintf(
-                                __('%s available on your Dropbox', 'backwpup'),
-                                size_format($dropboxfreespase, 2)
-                            )
-                        );
+                        $dropboxfreespase = $this->free_space_from_quota(is_array($quota) ? $quota : []);
+                        if ($dropboxfreespase !== null) {
+                            $job_object->log(
+                                sprintf(
+                                    __('%s available on your Dropbox', 'backwpup'),
+                                    size_format($dropboxfreespase, 2)
+                                )
+                            );
+                        } else {
+                            $job_object->log(__('Dropbox free space could not be determined from the quota response.', 'backwpup'));
+                        }
                     }
                 } else {
                     $job_object->log(__('Not Authenticated with Dropbox!', 'backwpup'), E_USER_ERROR);
@@ -404,11 +415,36 @@ class BackWPup_Destination_Dropbox extends BackWPup_Destinations
             }
 
             // put the file
-            if ($job_object->substeps_done < $job_object->backup_filesize) { //only if upload not complete
+            // "<=": a multipart upload whose session could not be finished must be resumed (finished) on the next try.
+            if ($job_object->substeps_done <= $job_object->backup_filesize) { //only if upload not complete
+                $errors_before = $job_object->errors;
                 $response = $dropbox->upload(
                     $job_object->backup_folder . $job_object->backup_file,
                     $job_object->job['dropboxdir'] . $job_object->backup_file
                 );
+                if (!is_array($response) || !isset($response['size'])) {
+                    // The API layer already logged the reason as an error.
+                    if ($job_object->errors > $errors_before) {
+                        return false;
+                    }
+
+                    $message = __('Dropbox API: Upload failed.', 'backwpup');
+                    try {
+                        $quota = $dropbox->usersGetSpaceUsage();
+                    } catch (Exception $exception) {
+                        $quota = null;
+                    }
+                    $free_space = is_array($quota) ? $this->free_space_from_quota($quota) : null;
+                    if ($free_space !== null && $job_object->backup_filesize > $free_space) {
+                        $message = __('You do not have enough space in your Dropbox.', 'backwpup');
+                    }
+                    if (is_array($response) && !empty($response['error'])) {
+                        $message .= ' ' . (is_scalar($response['error']) ? (string) $response['error'] : wp_json_encode($response['error']));
+                    }
+                    $job_object->log($message, E_USER_ERROR);
+
+                    return false;
+                }
                 if ($response['size'] == $job_object->backup_filesize) {
                     if (!empty($job_object->job['jobid'])) {
                         BackWPup_Option::update(
@@ -451,9 +487,9 @@ class BackWPup_Destination_Dropbox extends BackWPup_Destinations
         } catch (Exception $e) {
             $job_object->log(
                 sprintf(__('Dropbox API: %s', 'backwpup'), $e->getMessage()),
+                E_USER_ERROR,
                 $e->getFile(),
-                $e->getLine(),
-                E_USER_ERROR
+                $e->getLine()
             );
 
             return false;
@@ -494,5 +530,50 @@ class BackWPup_Destination_Dropbox extends BackWPup_Destinations
         }
 
         return $this->dropbox;
+    }
+
+    /**
+     * Checks whether the Dropbox authorization of a job is also used by another job.
+     *
+     * @param int $jobid The job ID
+     */
+    private function is_token_used_by_other_job(int $jobid): bool
+    {
+        $token = BackWPup_Option::get($jobid, 'dropboxtoken');
+        if (!is_array($token) || empty($token['refresh_token'])) {
+            return false;
+        }
+
+        foreach ((array) BackWPup_Option::get_job_ids() as $other_jobid) {
+            if ((int) $other_jobid === $jobid) {
+                continue;
+            }
+            $other_token = BackWPup_Option::get($other_jobid, 'dropboxtoken');
+            if (is_array($other_token) && !empty($other_token['refresh_token'])
+                && $other_token['refresh_token'] === $token['refresh_token']) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Extract the available Dropbox space from the quota payload.
+     *
+     * Team accounts or unexpected responses may not contain the individual allocation.
+     *
+     * @param array $quota Dropbox quota payload
+     */
+    private function free_space_from_quota(array $quota): ?int
+    {
+        if (!isset($quota['allocation']['allocated'], $quota['used'])
+            || !is_numeric($quota['allocation']['allocated'])
+            || !is_numeric($quota['used'])
+        ) {
+            return null;
+        }
+
+        return max(0, (int) $quota['allocation']['allocated'] - (int) $quota['used']);
     }
 }
