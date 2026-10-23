@@ -7,6 +7,50 @@
 class BackWPup_File
 {
     /**
+     * Apache protection file written by protect_folder().
+     *
+     * @var string
+     */
+    public const HTACCESS_FILE = '.htaccess';
+
+    /**
+     * IIS protection file written by protect_folder().
+     *
+     * @var string
+     */
+    public const WEB_CONFIG_FILE = 'Web.config';
+
+    /**
+     * Directory-listing guard written by protect_folder() (Apache and nginx).
+     *
+     * @var string
+     */
+    public const INDEX_FILE = 'index.php';
+
+    /**
+     * Backup-exclusion marker written by write_do_not_backup_file().
+     *
+     * @var string
+     */
+    public const DO_NOT_BACKUP_FILE = '.donotbackup';
+
+    /**
+     * Returns the names of every file check_folder() may write to protect a folder.
+     *
+     * Lets other components tell these files apart from real folder content.
+     *
+     * @return string[]
+     */
+    public static function protection_file_names(): array
+    {
+        return [
+            self::HTACCESS_FILE,
+            self::WEB_CONFIG_FILE,
+            self::INDEX_FILE,
+            self::DO_NOT_BACKUP_FILE,
+        ];
+    }
+    /**
      * Get the folder for blog uploads.
      *
      * @return string
@@ -268,12 +312,16 @@ class BackWPup_File
 
     private static function protect_folder(string $folder): void
     {
-        $server_software = strtolower((string) $_SERVER['SERVER_SOFTWARE']);
+        $server_software = '';
+        if (isset($_SERVER['SERVER_SOFTWARE'])) {
+            $server_software = sanitize_text_field(wp_unslash($_SERVER['SERVER_SOFTWARE']));
+        }
+        $server_software = strtolower($server_software);
 
         if (strstr($server_software, 'microsoft-iis')) {
-            if (!file_exists($folder . '/Web.config')) {
+            if (!file_exists($folder . '/' . self::WEB_CONFIG_FILE)) {
                 file_put_contents(
-                    $folder . '/Web.config',
+                    $folder . '/' . self::WEB_CONFIG_FILE,
                     '<configuration>' . PHP_EOL .
                     "\t<system.webServer>" . PHP_EOL .
                     "\t\t<authorization>" . PHP_EOL .
@@ -284,22 +332,36 @@ class BackWPup_File
                 );
             }
         } elseif (strstr($server_software, 'nginx')) {
-            if (!file_exists($folder . '/index.php')) {
+            if (!file_exists($folder . '/' . self::INDEX_FILE)) {
                 file_put_contents(
-                    $folder . '/index.php',
+                    $folder . '/' . self::INDEX_FILE,
                     '<?php' . PHP_EOL . "header( \$_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found' );" . PHP_EOL . "header( 'Status: 404 Not Found' );" . PHP_EOL
                 );
             }
         } else {
-            if (!file_exists($folder . '/.htaccess')) {
-                file_put_contents(
-                    $folder . '/.htaccess',
-                    '<Files "*">' . PHP_EOL . '<IfModule mod_access.c>' . PHP_EOL . 'Deny from all' . PHP_EOL . '</IfModule>' . PHP_EOL . '<IfModule !mod_access_compat>' . PHP_EOL . '<IfModule mod_authz_host.c>' . PHP_EOL . 'Deny from all' . PHP_EOL . '</IfModule>' . PHP_EOL . '</IfModule>' . PHP_EOL . '<IfModule mod_access_compat>' . PHP_EOL . 'Deny from all' . PHP_EOL . '</IfModule>' . PHP_EOL . '</Files>'
-                );
+            $htaccess_path = $folder . '/' . self::HTACCESS_FILE;
+            $htaccess_content = '<Files "*">' . PHP_EOL .
+                '<IfModule mod_authz_core.c>' . PHP_EOL .
+                'Require all denied' . PHP_EOL .
+                '</IfModule>' . PHP_EOL .
+                '<IfModule !mod_authz_core.c>' . PHP_EOL .
+                '<IfModule mod_access_compat>' . PHP_EOL .
+                'Deny from all' . PHP_EOL .
+                '</IfModule>' . PHP_EOL .
+                '</IfModule>' . PHP_EOL .
+                '</Files>';
+
+            // Rewrite stale files written by older versions, which did not protect Apache 2.4
+            // without mod_access_compat.
+            $needs_write = !file_exists($htaccess_path)
+                || false !== strpos((string) file_get_contents($htaccess_path), 'mod_access.c'); // phpcs:ignore
+
+            if ($needs_write) {
+                file_put_contents($htaccess_path, $htaccess_content);
             }
-            if (!file_exists($folder . '/index.php')) {
+            if (!file_exists($folder . '/' . self::INDEX_FILE)) {
                 file_put_contents(
-                    $folder . '/index.php',
+                    $folder . '/' . self::INDEX_FILE,
                     '<?php' . PHP_EOL . "header( \$_SERVER['SERVER_PROTOCOL'] . ' 404 Not Found' );" . PHP_EOL . "header( 'Status: 404 Not Found' );" . PHP_EOL
                 );
             }
@@ -308,7 +370,7 @@ class BackWPup_File
 
     private static function write_do_not_backup_file(string $folder): void
     {
-        $doNotBackupFile = "{$folder}/.donotbackup";
+        $doNotBackupFile = $folder . '/' . self::DO_NOT_BACKUP_FILE;
 
         if (!file_exists($doNotBackupFile)) {
             file_put_contents(
