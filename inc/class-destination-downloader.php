@@ -69,6 +69,14 @@ class BackWPup_Destination_Downloader
             return;
         }
 
+        // Authorization must be checked before any destination code runs. Some destinations
+        // (e.g. Rackspace, SugarSync) implement their own file_download() which does not go
+        // through BackWpup_Download_Handler and therefore never checked permissions.
+        if (!current_user_can(self::CAPABILITY)) {
+            wp_die(esc_html__('Sorry, you don\'t have permissions to do that.', 'backwpup'), 403);
+        }
+        check_admin_referer('backwpup_action_nonce', 'backwpup_action_nonce');
+
         set_time_limit(0);
         // Set up eventsource headers
         header('Content-Type: text/event-stream');
@@ -147,7 +155,9 @@ class BackWPup_Destination_Downloader
             self::send_message(
                 [
                     'state' => self::STATE_ERROR,
-                    'message' => $e->getMessage(),
+                    // Escape the message: it may contain data coming from remote services or file
+                    // paths and is rendered as HTML by the backup downloader script.
+                    'message' => esc_html($e->getMessage()),
                 ],
                 'log'
             );
@@ -179,7 +189,7 @@ class BackWPup_Destination_Downloader
      */
     private static function send_message($data, $event = 'message')
     {
-        echo "event: {$event}\n";
+        echo 'event: ' . esc_html($event) . "\n";
         echo 'data: ' . wp_json_encode($data) . "\n\n";
         flush();
     }

@@ -198,6 +198,11 @@ class BackWPup_Destination_RSC extends BackWPup_Destinations
 
     public function file_download(int $jobid, string $get_file, ?string $local_file_path = null): void
     {
+        // This destination streams the file itself, so it must check permissions on its own.
+        if (!current_user_can('backwpup_backups_download')) {
+            wp_die(esc_html__('Sorry, you don\'t have permissions to do that.', 'backwpup'), 403);
+        }
+
         try {
             $conn = new Rackspace(
                 self::get_auth_url_by_region(BackWPup_Option::get($jobid, 'rscregion')),
@@ -228,7 +233,7 @@ class BackWPup_Destination_RSC extends BackWPup_Destinations
 
             exit();
         } catch (Exception $e) {
-            exit($e->getMessage());
+            exit(esc_html($e->getMessage()));
         }
     }
 
