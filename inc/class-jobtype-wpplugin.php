@@ -66,9 +66,13 @@ class BackWPup_JobType_WPPlugin extends BackWPup_JobTypes
      */
     public function edit_form_post_save($id)
     {
-        BackWPup_Option::update($id, 'pluginlistfile', sanitize_text_field($_POST['pluginlistfile']));
-        if ($_POST['pluginlistfilecompression'] === '' || $_POST['pluginlistfilecompression'] === '.gz' || $_POST['pluginlistfilecompression'] === '.bz2') {
-            BackWPup_Option::update($id, 'pluginlistfilecompression', $_POST['pluginlistfilecompression']);
+        if (isset($_POST['pluginlistfile'])) {
+            BackWPup_Option::update($id, 'pluginlistfile', sanitize_text_field(wp_unslash((string) $_POST['pluginlistfile'])));
+        }
+
+        $compression = isset($_POST['pluginlistfilecompression']) ? sanitize_text_field(wp_unslash((string) $_POST['pluginlistfilecompression'])) : null;
+        if ($compression === '' || $compression === '.gz' || $compression === '.bz2') {
+            BackWPup_Option::update($id, 'pluginlistfilecompression', $compression);
         }
     }
 
@@ -108,7 +112,7 @@ class BackWPup_JobType_WPPlugin extends BackWPup_JobTypes
                 require_once ABSPATH . 'wp-admin/includes/plugin.php';
             }
             $plugins = get_plugins();
-            $plugins_active = get_option('active_plugins');
+            $plugins_active = (array) get_option('active_plugins', []);
             //write it to file
             fwrite($handle, PHP_EOL . __('All plugin information:', 'backwpup') . PHP_EOL . '------------------------------' . PHP_EOL);
 

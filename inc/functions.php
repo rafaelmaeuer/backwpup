@@ -1,4 +1,8 @@
 <?php
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Template Function.
  *
@@ -15,7 +19,7 @@ function backwpup_template($bind, $file_path)
         throw new \InvalidArgumentException(
             sprintf(
                 'Invalid or malformed file path %s: for template function.',
-                $file_path
+                esc_html((string) $file_path)
             )
         );
     }
@@ -27,7 +31,7 @@ function backwpup_template($bind, $file_path)
         throw new \InvalidArgumentException(
             sprintf(
                 'Cannot locate the template %s in template function.',
-                $path
+                esc_html($path)
             )
         );
     }

@@ -149,6 +149,17 @@ class BackWPup_Job
      */
     private $signal = 0;
 
+    /**
+     * The archive currently written by create_archive(), if any.
+     *
+     * Only set while create_archive() has an open BackWPup_Create_Archive instance, so an
+     * abort detected in update_working_data()/do_restart() can delete the partial archive.
+     * Never written to the running file (see __clone()).
+     *
+     * @var BackWPup_Create_Archive|null
+     */
+    private $current_archive;
+
     public static function start_http($starttype, $jobid = 0)
     {
         //load text domain
@@ -223,15 +234,16 @@ class BackWPup_Job
             return false;
         }
 
-        $file_data = file_get_contents(BackWPup::get_plugin_data('running_file'), false, null, 8);
+        $file_data = @file_get_contents(BackWPup::get_plugin_data('running_file'), false, null, 8);
         if (empty($file_data)) {
             return false;
         }
 
-        if ($job_object = unserialize($file_data)) {
-            if ($job_object instanceof BackWPup_Job) {
-                return $job_object;
-            }
+        // Hardening: never instantiate any other class than the job itself from the running file
+        // (prevents PHP object injection if the file was tampered with).
+        $job_object = @unserialize($file_data, ['allowed_classes' => [self::class]]);
+        if ($job_object instanceof self) {
+            return $job_object;
         }
 
         return false;
@@ -272,6 +284,27 @@ class BackWPup_Job
         if ($job_id) {
             $this->job = BackWPup_Option::get_job($job_id);
         } else {
+            return;
+        }
+
+        if (empty($this->job) || !is_array($this->job)) {
+            return;
+        }
+
+        /**
+         * Filter to prevent the start of a job.
+         *
+         * @param bool   $start      Start the job.
+         * @param array  $job        Job data.
+         * @param string $start_type Start type.
+         */
+        if (!apply_filters('backwpup_can_job_start', true, $this->job, $start_type)) {
+            $error_message = sprintf(__('Start of job "%s" forbidden!', 'backwpup'), esc_html($this->job['name']));
+            if ($start_type === 'runcli' && defined('WP_CLI') && WP_CLI) {
+                \WP_CLI::error($error_message);
+            }
+            BackWPup_Admin::message($error_message, true);
+
             return;
         }
 
@@ -482,12 +515,13 @@ class BackWPup_Job
         }
         if ($this->job['activetype'] === 'wpcron') {
             //check next run
-            $cron_next = wp_next_scheduled('backwpup_cron', ['arg' => $this->job['jobid']]);
+            // Job id must be an int, otherwise WP-Cron sees different args and duplicates the event.
+            $cron_next = wp_next_scheduled('backwpup_cron', ['arg' => (int) $this->job['jobid']]);
             if (!$cron_next || $cron_next < time()) {
-                wp_unschedule_event($cron_next, 'backwpup_cron', ['arg' => $this->job['jobid']]);
+                wp_clear_scheduled_hook('backwpup_cron', ['arg' => (int) $this->job['jobid']]);
                 $cron_next = BackWPup_Cron::cron_next($this->job['cron']);
-                wp_schedule_single_event($cron_next, 'backwpup_cron', ['arg' => $this->job['jobid']]);
-                $cron_next = wp_next_scheduled('backwpup_cron', ['arg' => $this->job['jobid']]);
+                wp_schedule_single_event($cron_next, 'backwpup_cron', ['arg' => (int) $this->job['jobid']]);
+                $cron_next = wp_next_scheduled('backwpup_cron', ['arg' => (int) $this->job['jobid']]);
             }
             //output scheduling
             if ($this->is_debug()) {
@@ -567,7 +601,7 @@ class BackWPup_Job
             if (isset($_SERVER['SERVER_SOFTWARE'])) {
                 $info .= sprintf(
                     __('[INFO] Web Server: %s', 'backwpup'),
-                    $_SERVER['SERVER_SOFTWARE']
+                    esc_html(wp_unslash((string) $_SERVER['SERVER_SOFTWARE']))
                 ) . '<br />' . PHP_EOL;
             }
             if (function_exists('curl_init')) {
@@ -593,9 +627,15 @@ class BackWPup_Job
             if ($this->is_debug()) {
                 $backupfile = $this->backup_folder . $this->backup_file;
             } else {
-                $backupfile = $this->backup_file;
+                // Show where the backup is stored without disclosing the (hashed) backup folder name.
+                $path = '.../';
+                $path_parts = explode('/', str_replace('\\', '/', (string) $this->backup_folder));
+                if (count($path_parts) > 4) {
+                    $path = implode('/', array_slice($path_parts, 0, -4)) . '/.../';
+                }
+                $backupfile = $path . $this->backup_file;
             }
-            $info .= sprintf(__('[INFO] Backup file is: %s', 'backwpup'), $backupfile) . '<br />' . PHP_EOL;
+            $info .= sprintf(__('[INFO] Backup file is: %s', 'backwpup'), esc_html($backupfile)) . '<br />' . PHP_EOL;
         } else {
             $info .= sprintf(
                 __('[INFO] Backup type is: %s', 'backwpup'),
@@ -739,7 +779,9 @@ class BackWPup_Job
 
         $write = file_put_contents(BackWPup::get_plugin_data('running_file'), $data);
         if (!$write || $write < strlen($data)) {
-            unlink(BackWPup::get_plugin_data('running_file'));
+            if (file_exists(BackWPup::get_plugin_data('running_file'))) {
+                @unlink(BackWPup::get_plugin_data('running_file'));
+            }
             $this->log(__('Cannot write progress to working file. Job will be aborted.', 'backwpup'), E_USER_ERROR);
         }
     }
@@ -758,6 +800,12 @@ class BackWPup_Job
     {
         // if error has been suppressed with an @
         if (error_reporting() == 0) {
+            return true;
+        }
+
+        // Called as PHP error handler (int type first, message second): respect the current error
+        // reporting level. Since PHP 8 the @ operator no longer sets error_reporting() to 0.
+        if (!is_int($type) && is_int($message) && !(error_reporting() & $message)) {
             return true;
         }
 
@@ -797,9 +845,10 @@ class BackWPup_Job
         //if not set line and file get it
         if ($this->is_debug()) {
             if (empty($file) || empty($line)) {
-                $debug_info = debug_backtrace();
-                $file = $debug_info[0]['file'];
-                $line = $debug_info[0]['line'];
+                // Without args and limited, a full backtrace can need a lot of memory.
+                $debug_info = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 1);
+                $file = $debug_info[0]['file'] ?? '';
+                $line = $debug_info[0]['line'] ?? 0;
             }
         }
 
@@ -835,7 +884,7 @@ class BackWPup_Job
                 $message = __('DEPRECATED:', 'backwpup') . ' ' . $message;
                 break;
 
-            case E_STRICT:
+            case 2048: // E_STRICT, the constant is deprecated since PHP 8.4.
                 $message = __('STRICT NOTICE:', 'backwpup') . ' ' . $message;
                 break;
 
@@ -1043,8 +1092,10 @@ class BackWPup_Job
         // check WPDB connection. WP will do it after a query that will cause messages.
         $wpdb->check_connection(false);
 
-        //set execution time again for 5 min
-        @set_time_limit(300);
+        //set execution time again for 5 min (disabled functions are undefined on PHP 8 and would be fatal)
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(300);
+        }
 
         //calc sub step percent
         if ($this->substeps_todo > 0 && $this->substeps_done > 0) {
@@ -1055,7 +1106,8 @@ class BackWPup_Job
 
         //check if job aborted
         if (!file_exists(BackWPup::get_plugin_data('running_file'))) {
-            if ($this->step_working !== 'END') {
+            // The running file is legitimately absent during setup (CREATE) and teardown (END).
+            if ($this->step_working !== 'END' && $this->step_working !== 'CREATE') {
                 $this->end();
             }
         } else {
@@ -1076,9 +1128,10 @@ class BackWPup_Job
     public function need_free_memory($memneed)
     {
         //need memory
-        $needmemory = @memory_get_usage(true) + self::convert_hr_to_bytes($memneed);
-        // increase Memory
-        if ($needmemory > self::convert_hr_to_bytes(ini_get('memory_limit'))) {
+        $needmemory = memory_get_usage(true) + self::convert_hr_to_bytes($memneed);
+        $memory_limit = self::convert_hr_to_bytes(ini_get('memory_limit'));
+        // increase Memory (never lower an unlimited (-1) memory limit)
+        if ($memory_limit > 0 && $needmemory > $memory_limit && function_exists('ini_set')) {
             $newmemory = round($needmemory / 1024 / 1024) + 1 . 'M';
             if ($needmemory >= 1073741824) {
                 $newmemory = round($needmemory / 1024 / 1024 / 1024) . 'G';
@@ -1110,6 +1163,51 @@ class BackWPup_Job
     }
 
     /**
+     * Whether the running file is missing, which means the job was aborted.
+     *
+     * @return bool
+     */
+    private function is_running_file_missing()
+    {
+        clearstatcache(true, BackWPup::get_plugin_data('running_file'));
+
+        return !file_exists(BackWPup::get_plugin_data('running_file'));
+    }
+
+    /**
+     * Close and delete the archive create_archive() left open in this request, if any.
+     *
+     * Only has an effect when the job is aborted while archiving.
+     */
+    private function cleanup_aborted_archive()
+    {
+        if (!$this->current_archive instanceof BackWPup_Create_Archive) {
+            return;
+        }
+
+        $archive = $this->current_archive;
+        $this->current_archive = null;
+
+        if (method_exists($archive, 'abort')) {
+            $archive->abort();
+
+            return;
+        }
+
+        try {
+            $archive->close();
+        } catch (Exception $e) {
+            // Archive is deleted below anyway.
+        }
+        unset($archive);
+
+        $archive_file = $this->backup_folder . $this->backup_file;
+        if ($this->backup_file && is_file($archive_file)) {
+            @unlink($archive_file);
+        }
+    }
+
+    /**
      * Called on job stop makes cleanup and terminates the script.
      */
     private function end()
@@ -1117,7 +1215,9 @@ class BackWPup_Job
         $this->step_working = 'END';
         $this->substeps_todo = 1;
 
-        if (!file_exists(BackWPup::get_plugin_data('running_file'))) {
+        if ($this->is_running_file_missing()) {
+            // Delete a partial archive that create_archive() left open in this request.
+            $this->cleanup_aborted_archive();
             $this->log(__('Aborted by user!', 'backwpup'), E_USER_ERROR);
         }
 
@@ -1151,7 +1251,7 @@ class BackWPup_Job
                     if ($i < get_site_option('backwpup_cfg_maxlogs')) {
                         continue;
                     }
-                    unlink($log_file->getPathname());
+                    @unlink($log_file->getPathname());
                     ++$num_delete_files;
                 }
                 if ($num_delete_files > 0) {
@@ -1267,29 +1367,31 @@ class BackWPup_Job
                 $headers = [];
                 $headers[] = 'Content-Type: text/html; charset=' . get_bloginfo('charset');
                 if ($this->job['mailaddresssenderlog']) {
-                    $this->job['mailaddresssenderlog'] = str_replace(
-                        ['&lt;', '&gt;'],
-                        [
-                            '<',
-                            '>',
-                        ],
-                        (string) $this->job['mailaddresssenderlog']
-                    );
-
-                    $bracket_pos = strpos($this->job['mailaddresssenderlog'], '<');
-                    $at_pos = strpos($this->job['mailaddresssenderlog'], '@');
-                    if ($bracket_pos === false || $at_pos === false) {
-                        $this->job['mailaddresssenderlog'] = str_replace(
-                            [
-                                '<',
-                                '>',
-                            ],
-                            '',
-                            $this->job['mailaddresssenderlog']
-                        ) . ' <' . get_bloginfo('admin_email') . '>';
+                    // Parse "Name <email>" strictly so no header can be injected via the sender setting.
+                    $from = html_entity_decode((string) $this->job['mailaddresssenderlog'], ENT_QUOTES);
+                    $email = '';
+                    if (is_email(trim($from))) {
+                        $email = sanitize_email(trim($from));
+                        $from = '';
+                    } else {
+                        $start_pos = strrpos($from, '<');
+                        if ($start_pos !== false) {
+                            $end_pos = strpos($from, '>', $start_pos);
+                            if ($end_pos !== false) {
+                                $email = sanitize_email(substr($from, $start_pos + 1, $end_pos - $start_pos - 1));
+                            }
+                            $from = substr($from, 0, $start_pos);
+                        }
+                    }
+                    $from = trim(str_replace(['<', '>', '"'], '', sanitize_text_field($from)));
+                    if ($from === '') {
+                        $from = 'BackWPup ' . sanitize_text_field(get_bloginfo('name'));
+                    }
+                    if (!is_email($email)) {
+                        $email = get_bloginfo('admin_email');
                     }
 
-                    $headers[] = 'From: ' . $this->job['mailaddresssenderlog'];
+                    $headers[] = 'From: ' . $from . ' <' . $email . '>';
                 }
                 wp_mail($this->job['mailaddresslog'], $subject, file_get_contents($this->logfile), $headers);
             }
@@ -1337,7 +1439,7 @@ class BackWPup_Job
                         continue;
                     }
                     if ($file->isWritable()) {
-                        unlink($file->getPathname());
+                        @unlink($file->getPathname());
                     }
                 }
             } catch (UnexpectedValueException $e) {
@@ -1380,8 +1482,11 @@ class BackWPup_Job
             return;
         }
 
-        //no restart if no working job
-        if (!file_exists(BackWPup::get_plugin_data('running_file'))) {
+        // A missing running file means the job was aborted: end it here instead of
+        // returning and letting the job continue in this process.
+        if ($this->is_running_file_missing()) {
+            $this->end();
+
             return;
         }
 
@@ -1402,6 +1507,9 @@ class BackWPup_Job
         //do restart
         wp_clear_scheduled_hook('backwpup_cron', ['arg' => 'restart']);
         wp_schedule_single_event(time() + 5, 'backwpup_cron', ['arg' => 'restart']);
+        // Release the open archive so its destructor flushes it to disk before the next
+        // process reopens it. Do not close() it: that would finalize Tar archives and break resume.
+        $this->current_archive = null;
         self::get_jobrun_url('restart');
 
         exit();
@@ -1454,7 +1562,11 @@ class BackWPup_Job
         }
 
         if ($starttype === 'runext') {
-            $query_args['_nonce'] = get_site_option('backwpup_cfg_jobrunauthkey');
+            // Per-job token, so a published job link can not be used to start other jobs.
+            // Legacy links with the plain auth key are still accepted by BackWPup_Cron::cron_active().
+            $query_args['_nonce'] = !empty($jobid)
+                ? md5(get_site_option('backwpup_cfg_jobrunauthkey') . (int) $jobid)
+                : get_site_option('backwpup_cfg_jobrunauthkey');
             $query_args['doing_wp_cron'] = null;
             if (!empty($authurl)) {
                 $url = str_replace('https://', 'https://' . $authurl, $url);
@@ -1490,25 +1602,26 @@ class BackWPup_Job
         }
 
         if (!empty($authentication['user_id']) && $authentication['method'] === 'user') {
-            //cache cookies for auth some
-            $cookies = get_site_transient('backwpup_cookies');
-            if (empty($cookies)) {
-                $wp_admin_user = get_users(['role' => 'administrator', 'number' => 1]);
-                if (empty($wp_admin_user)) {
-                    $wp_admin_user = get_users(['role' => 'backwpup_admin', 'number' => 1]);
-                }
-                if (!empty($wp_admin_user[0]->ID)) {
+            // Cache cookies for auth of the configured user (not just any administrator),
+            // keyed by user id so changing the user in the settings creates a fresh cookie.
+            $user_id = (int) $authentication['user_id'];
+            $transient_key = 'backwpup_cookies_' . $user_id;
+            $cookies = get_site_transient($transient_key);
+            if ($cookies === false || !is_array($cookies)) {
+                $cookies = [];
+                $user = get_userdata($user_id);
+                if (!empty($user) && $user->exists()) {
                     $expiration = time() + (2 * DAY_IN_SECONDS);
-                    $manager = WP_Session_Tokens::get_instance($wp_admin_user[0]->ID);
+                    $manager = WP_Session_Tokens::get_instance($user_id);
                     $token = $manager->create($expiration);
                     $cookies[LOGGED_IN_COOKIE] = wp_generate_auth_cookie(
-                        $wp_admin_user[0]->ID,
+                        $user_id,
                         $expiration,
                         'logged_in',
                         $token
                     );
                 }
-                set_site_transient('backwpup_cookies', $cookies, 2 * DAY_IN_SECONDS);
+                set_site_transient($transient_key, $cookies, 2 * DAY_IN_SECONDS);
             }
         } else {
             $cookies = '';
@@ -1518,7 +1631,8 @@ class BackWPup_Job
             'url' => add_query_arg($query_args, $url),
             'key' => $query_args['doing_wp_cron'],
             'args' => [
-                'blocking' => false,
+                // Non-blocking requests are unreliable without the cURL extension.
+                'blocking' => !function_exists('curl_init'),
                 'sslverify' => false,
                 'timeout' => 0.01,
                 'headers' => $header,
@@ -1567,7 +1681,7 @@ class BackWPup_Job
         if (empty($this->steps_todo) || empty($this->logfile)) {
             $running_file = BackWPup::get_plugin_data('running_file');
             if (file_exists($running_file)) {
-                unlink($running_file);
+                @unlink($running_file);
             }
 
             return;
@@ -1595,9 +1709,15 @@ class BackWPup_Job
         @ini_set('log_errors', '1');
         @ini_set('html_errors', '0');
         @ini_set('report_memleaks', '1');
-        @ini_set('zlib.output_compression', '0');
+        // Changing output compression after headers were sent raises a warning.
+        if (!headers_sent()) {
+            @ini_set('zlib.output_compression', '0');
+        }
         @ini_set('implicit_flush', '0');
-        @putenv('TMPDIR=' . BackWPup::get_plugin_data('TEMP'));
+        // putenv() may be disabled; disabled functions are undefined on PHP 8 (fatal error even with @).
+        if (function_exists('putenv')) {
+            @putenv('TMPDIR=' . BackWPup::get_plugin_data('TEMP'));
+        }
         //Write Wordpress DB errors to log
         $wpdb->suppress_errors(false);
         $wpdb->hide_errors();
@@ -1741,7 +1861,7 @@ class BackWPup_Job
         //load folders to backup
         $folders_to_backup = $this->get_folders_to_backup();
 
-        $this->substeps_todo = $this->count_folder + 1;
+        $this->substeps_todo = count($folders_to_backup) + 1;
 
         //initial settings for restarts in archiving
         if (!isset($this->steps_data[$this->step_working]['on_file'])) {
@@ -1752,7 +1872,7 @@ class BackWPup_Job
         }
 
         if ($this->steps_data[$this->step_working]['on_folder'] == '' && $this->steps_data[$this->step_working]['on_file'] == '' && is_file($this->backup_folder . $this->backup_file)) {
-            unlink($this->backup_folder . $this->backup_file);
+            @unlink($this->backup_folder . $this->backup_file);
         }
 
         if ($this->steps_data[$this->step_working]['SAVE_STEP_TRY'] != $this->steps_data[$this->step_working]['STEP_TRY']) {
@@ -1767,6 +1887,7 @@ class BackWPup_Job
 
         try {
             $backup_archive = new BackWPup_Create_Archive($this->backup_folder . $this->backup_file);
+            $this->current_archive = $backup_archive;
 
             //show method for creation
             if ($this->substeps_done == 0) {
@@ -1797,6 +1918,7 @@ class BackWPup_Job
                             $this->update_working_data();
                         } else {
                             $backup_archive->close();
+                            $this->current_archive = null;
                             $this->steps_data[$this->step_working]['on_file'] = '';
                             $this->steps_data[$this->step_working]['on_folder'] = '';
                             $this->log(
@@ -1812,16 +1934,23 @@ class BackWPup_Job
             }
 
             //add normal files
-            while ($folder = array_shift($folders_to_backup)) {
-                //jump over already done folders
-                if (in_array($this->steps_data[$this->step_working]['on_folder'], $folders_to_backup, true)) {
-                    continue;
+            // Jump over already done folders. Resume via positional lookup instead of an
+            // in_array() per entry, which was O(n^2) and could stall on large sites.
+            $folders_to_backup = array_values($folders_to_backup);
+            $on_folder = $this->steps_data[$this->step_working]['on_folder'];
+            if ($on_folder !== '') {
+                $folder_positions = array_flip($folders_to_backup);
+                if (isset($folder_positions[$on_folder])) {
+                    $folders_to_backup = array_slice($folders_to_backup, $folder_positions[$on_folder]);
                 }
+                unset($folder_positions);
+            }
+            while (($folder = array_shift($folders_to_backup)) !== null) {
                 if ($this->is_debug()) {
                     $this->log(sprintf(__('Archiving Folder: %s', 'backwpup'), $folder));
                 }
                 $this->steps_data[$this->step_working]['on_folder'] = $folder;
-                $files_in_folder = $this->get_files_in_folder($folder);
+                $files_in_folder = array_values($this->get_files_in_folder($folder));
                 //add empty folders
                 if (empty($files_in_folder)) {
                     $folder_name_in_archive = trim(ltrim($this->get_destination_path_replacement($folder), '/'));
@@ -1831,12 +1960,17 @@ class BackWPup_Job
 
                     continue;
                 }
-                //add files
-                while ($file = array_shift($files_in_folder)) {
-                    //jump over already done files
-                    if (in_array($this->steps_data[$this->step_working]['on_file'], $files_in_folder, true)) {
-                        continue;
+                //jump over already done files
+                $on_file = $this->steps_data[$this->step_working]['on_file'];
+                if ($on_file !== '') {
+                    $file_positions = array_flip($files_in_folder);
+                    if (isset($file_positions[$on_file])) {
+                        $files_in_folder = array_slice($files_in_folder, $file_positions[$on_file]);
                     }
+                    unset($file_positions);
+                }
+                //add files
+                while (($file = array_shift($files_in_folder)) !== null) {
                     if ($this->maybe_sql_dump($file)) {
                         continue;
                     }
@@ -1846,7 +1980,10 @@ class BackWPup_Job
                     $restart_time = $this->get_restart_time();
                     if ($restart_time <= 0) {
                         unset($backup_archive);
+                        // do_restart() releases $this->current_archive before restarting (flushes the
+                        // archive) or uses it to delete the partial archive if the job was aborted.
                         $this->do_restart_time(true);
+                        $this->current_archive = null;
 
                         return false;
                     }
@@ -1860,6 +1997,7 @@ class BackWPup_Job
                     } else {
                         $backup_archive->close();
                         unset($backup_archive);
+                        $this->current_archive = null;
                         $this->steps_data[$this->step_working]['on_file'] = '';
                         $this->steps_data[$this->step_working]['on_folder'] = '';
                         $this->substeps_done = 0;
@@ -1880,8 +2018,12 @@ class BackWPup_Job
             }
             $backup_archive->close();
             unset($backup_archive);
+            $this->current_archive = null;
             $this->log(__('Backup archive created.', 'backwpup'), E_USER_NOTICE);
         } catch (Exception $e) {
+            // Release the open archive so it is flushed before a retry/restart.
+            unset($backup_archive);
+            $this->current_archive = null;
             $this->log($e->getMessage(), E_USER_ERROR, $e->getFile(), $e->getLine());
 
             return false;
@@ -2173,8 +2315,11 @@ class BackWPup_Job
                 }
             }
         } catch (UnexpectedValueException $e) {
-            $this->log(sprintf(__('Could not open path: %s'), $e->getMessage()), E_USER_WARNING);
+            $this->log(sprintf(__('Could not open path: %s', 'backwpup'), $e->getMessage()), E_USER_WARNING);
         }
+
+        // Deterministic order with sequential keys: create_archive() resumes by position after a restart.
+        sort($files);
 
         return $files;
     }
@@ -2407,8 +2552,12 @@ class BackWPup_Job
     public static function disable_caches()
     {
         //Special settings
-        @putenv('nokeepalive=1');
-        @ini_set('zlib.output_compression', 'Off');
+        if (function_exists('putenv')) {
+            @putenv('nokeepalive=1');
+        }
+        if (!headers_sent()) {
+            @ini_set('zlib.output_compression', 'Off');
+        }
 
         // deactivate caches
         if (!defined('DONOTCACHEDB')) {
@@ -2466,7 +2615,7 @@ class BackWPup_Job
 
         //use file create date if none
         if (empty($joddata['logtime'])) {
-            $joddata['logtime'] = filectime($logfile);
+            $joddata['logtime'] = file_exists($logfile) ? filectime($logfile) : current_time('timestamp');
         }
 
         return $joddata;
@@ -2477,7 +2626,14 @@ class BackWPup_Job
         /** @var BackWPup_Job $job_object */
         $job_object = BackWPup_Job::get_working_data();
 
-        unlink(BackWPup::get_plugin_data('running_file'));
+        $running_file = BackWPup::get_plugin_data('running_file');
+        if (file_exists($running_file)) {
+            @unlink($running_file);
+        }
+
+        if (!$job_object instanceof self) {
+            return;
+        }
 
         //if job not working currently abort it this way for message
         $not_worked_time = microtime(true) - $job_object->timestamp_last_update;
@@ -2498,6 +2654,8 @@ class BackWPup_Job
     {
         $this->temp = [];
         $this->run = [];
+        // Never serialize the open archive object into the running file.
+        $this->current_archive = null;
     }
 
     /**
@@ -2674,7 +2832,7 @@ class BackWPup_Job
     {
         //Put last error to log if one
         $lasterror = error_get_last();
-        if ($lasterror['type'] === E_ERROR || $lasterror['type'] === E_PARSE || $lasterror['type'] === E_CORE_ERROR || $lasterror['type'] === E_CORE_WARNING || $lasterror['type'] === E_COMPILE_ERROR || $lasterror['type'] === E_COMPILE_WARNING) {
+        if (is_array($lasterror) && ($lasterror['type'] === E_ERROR || $lasterror['type'] === E_PARSE || $lasterror['type'] === E_CORE_ERROR || $lasterror['type'] === E_CORE_WARNING || $lasterror['type'] === E_COMPILE_ERROR || $lasterror['type'] === E_COMPILE_WARNING)) {
             $this->log($lasterror['type'], $lasterror['message'], $lasterror['file'], $lasterror['line']);
         }
 
