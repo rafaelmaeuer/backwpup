@@ -3,6 +3,10 @@
  * Create Archive.
  */
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Class for creating File Archives.
  */
@@ -67,6 +71,33 @@ class BackWPup_Create_Archive
     private $file_count = 0;
 
     /**
+     * Tar/TarGz duplicate-entry index.
+     *
+     * In-memory reconstructed state of every Tar/TarGz entry written so far in this
+     * archive, keyed by name_in_archive. Rebuilt on construction by replaying the
+     * NDJSON sidecar log when resuming an existing archive.
+     *
+     * @var array
+     */
+    private $tar_index = [];
+
+    /**
+     * Tar/TarGz duplicate-entry index sidecar log file path.
+     *
+     * Empty string for all non-Tar/TarGz methods.
+     *
+     * @var string
+     */
+    private $tar_index_file = '';
+
+    /**
+     * Tar/TarGz duplicate-entry index sidecar log file handle.
+     *
+     * @var resource|null
+     */
+    private $tar_index_handle;
+
+    /**
      * BackWPup_Create_Archive constructor.
      *
      * @param string $file file with full path of the archive
@@ -77,7 +108,7 @@ class BackWPup_Create_Archive
     {
         if (!is_string($file) || empty($file)) {
             throw new BackWPup_Create_Archive_Exception(
-                __('The file name of an archive cannot be empty.', 'backwpup')
+                esc_html__('The file name of an archive cannot be empty.', 'backwpup')
             );
         }
 
@@ -87,7 +118,7 @@ class BackWPup_Create_Archive
                 sprintf(
                 // translators: $1 is the file path
                     esc_html_x('Folder %s for archive not found', '%s = Folder name', 'backwpup'),
-                    dirname($file)
+                    esc_html(dirname($file))
                 )
             );
         }
@@ -101,19 +132,25 @@ class BackWPup_Create_Archive
         ) {
             if (!function_exists('gzencode')) {
                 throw new BackWPup_Create_Archive_Exception(
-                    __('Functions for gz compression not available', 'backwpup')
+                    esc_html__('Functions for gz compression not available', 'backwpup')
                 );
             }
 
             $this->method = 'TarGz';
             $this->handlertype = 'gz';
+            $this->tar_index_file = $this->file . '.bwuidx';
+            $is_fresh_start = !is_file($this->file);
             $this->filehandler = $this->fopen($this->file, 'ab');
+            $this->tar_index_init($is_fresh_start);
         }
 
         // .TAR
         if (!$this->filehandler && '.tar' === strtolower(substr($this->file, -4))) {
             $this->method = 'Tar';
+            $this->tar_index_file = $this->file . '.bwuidx';
+            $is_fresh_start = !is_file($this->file);
             $this->filehandler = $this->fopen($this->file, 'ab'); // phpcs:ignore
+            $this->tar_index_init($is_fresh_start);
         }
 
         // .ZIP
@@ -143,7 +180,7 @@ class BackWPup_Create_Archive
                         sprintf(
                         // translators: $1 is a directory name
                             esc_html_x('Cannot create zip archive: %d', 'ZipArchive open() result', 'backwpup'),
-                            $ziparchive_open
+                            esc_html((string) $ziparchive_open)
                         )
                     );
                 }
@@ -172,7 +209,7 @@ class BackWPup_Create_Archive
         ) {
             if (!function_exists('gzencode')) {
                 throw new BackWPup_Create_Archive_Exception(
-                    __('Functions for gz compression not available', 'backwpup')
+                    esc_html__('Functions for gz compression not available', 'backwpup')
                 );
             }
 
@@ -186,13 +223,13 @@ class BackWPup_Create_Archive
                 sprintf(
                 // translators: the $1 is the type of the archive file
                     esc_html_x('Method to archive file %s not detected', '%s = file name', 'backwpup'),
-                    basename($this->file)
+                    esc_html(basename($this->file))
                 )
             );
         }
 
         if (null === $this->filehandler) {
-            throw new BackWPup_Create_Archive_Exception(__('Cannot open archive file', 'backwpup'));
+            throw new BackWPup_Create_Archive_Exception(esc_html__('Cannot open archive file', 'backwpup'));
         }
     }
 
@@ -211,7 +248,7 @@ class BackWPup_Create_Archive
                         sprintf(
                         // translatores: $1 is the error string
                             esc_html__('PclZip archive add error: %s', 'backwpup'),
-                            $this->pclzip->errorInfo(true)
+                            esc_html((string) $this->pclzip->errorInfo(true))
                         ),
                         E_USER_ERROR
                     );
@@ -233,6 +270,12 @@ class BackWPup_Create_Archive
         // Close file if open.
         if (is_resource($this->filehandler)) {
             $this->fclose();
+        }
+
+        // Close the sidecar handle but keep the file, it is needed to resume.
+        if (is_resource($this->tar_index_handle)) {
+            fclose($this->tar_index_handle); // phpcs:ignore
+            $this->tar_index_handle = null;
         }
     }
 
@@ -258,6 +301,61 @@ class BackWPup_Create_Archive
         }
 
         $this->fclose();
+
+        // The archive is complete and will not be resumed again: close and delete the sidecar.
+        $this->tar_index_close_and_delete();
+    }
+
+    /**
+     * Abort a partially-written archive.
+     *
+     * Unlike close(), this discards the in-progress archive: it is not a valid, complete
+     * backup and must not be left on disk, together with its Tar/TarGz duplicate-entry
+     * sidecar. Safe to call for any archive method (Tar, TarGz, Zip, PclZip, gz).
+     */
+    public function abort()
+    {
+        if ($this->ziparchive instanceof \ZipArchive) {
+            $this->ziparchive->close();
+            $this->ziparchive = null;
+        }
+
+        if (is_object($this->pclzip)) {
+            // Drop queued files, the archive is discarded anyway.
+            $this->pclzip_file_list = [];
+        }
+
+        if (is_resource($this->filehandler)) {
+            $this->fclose();
+        }
+
+        $this->tar_index_close_and_delete();
+
+        if ('' !== $this->file && file_exists($this->file)) {
+            @unlink($this->file); // phpcs:ignore
+        }
+    }
+
+    /**
+     * Delete the Tar/TarGz duplicate-entry sidecar file for a given archive path, if any.
+     *
+     * The sidecar only ever exists next to a Tar/TarGz archive (suffix `.bwuidx`); for
+     * other archive methods this is a no-op. Callers should invoke this whenever a
+     * backup archive is deleted from disk so the sidecar does not linger as an orphan.
+     *
+     * @param string $archive_file Full path of the backup archive file.
+     */
+    public static function delete_sidecar_for($archive_file)
+    {
+        if (!is_string($archive_file) || '' === $archive_file) {
+            return;
+        }
+
+        $sidecar_file = $archive_file . '.bwuidx';
+
+        if (file_exists($sidecar_file)) {
+            @unlink($sidecar_file); // phpcs:ignore
+        }
     }
 
     /**
@@ -282,16 +380,18 @@ class BackWPup_Create_Archive
      */
     public function add_file($file_name, $name_in_archive = '')
     {
-        $file_name = trim($file_name);
-
-        if (!is_string($file_name) || empty($file_name)) {
+        if (!is_string($file_name) || '' === trim($file_name)) {
             trigger_error(
                 esc_html__('File name cannot be empty.', 'backwpup'),
                 E_USER_WARNING
             );
 
-            return false;
+            // Skip the entry instead of failing the whole archive.
+            return true;
         }
+
+        $file_name = trim($file_name);
+        $name_in_archive = (string) $name_in_archive;
 
         clearstatcache(true, $file_name);
 
@@ -300,7 +400,7 @@ class BackWPup_Create_Archive
                 sprintf(
                 // translators: The $1 is the name of the file to add to the archive.
                     esc_html_x('File %s does not exist or is not readable', 'File to add to archive', 'backwpup'),
-                    $file_name
+                    esc_html($file_name)
                 ),
                 E_USER_WARNING
             );
@@ -343,21 +443,20 @@ class BackWPup_Create_Archive
             case 'Tar':
             case 'TarGz':
                 // Convert chars for archives file names
-                if (function_exists('iconv') && stripos(PHP_OS, 'win') === 0) {
+                if (function_exists('iconv') && 'Windows' === PHP_OS_FAMILY) {
                     $test = @iconv('ISO-8859-1', 'UTF-8', $name_in_archive);
-                    if ($test) {
+                    if (false !== $test) {
                         $name_in_archive = $test;
                     }
                 }
 
                 return $this->tar_file($file_name, $name_in_archive);
-                break;
 
             case \ZipArchive::class:
                 // Convert chars for archives file names.
-                if (function_exists('iconv') && stripos(PHP_OS, 'win') === 0) {
+                if (function_exists('iconv') && 'Windows' === PHP_OS_FAMILY) {
                     $test = @iconv('UTF-8', 'CP437', $name_in_archive);
-                    if ($test) {
+                    if (false !== $test) {
                         $name_in_archive = $test;
                     }
                 }
@@ -413,13 +512,27 @@ class BackWPup_Create_Archive
                 }
 
                 if ($file_size < (1024 * 1024 * 2)) {
-                    if (!$this->ziparchive->addFromString($name_in_archive, file_get_contents($file_name))) {
+                    $file_contents = file_get_contents($file_name); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+                    if (false === $file_contents) {
+                        trigger_error(
+                            sprintf(
+                            // translators: %s: File name added to the archive.
+                                esc_html__('Cannot read "%s" for zip archive!', 'backwpup'),
+                                esc_html($name_in_archive)
+                            ),
+                            E_USER_ERROR
+                        );
+
+                        return false;
+                    }
+
+                    if (!$this->ziparchive->addFromString($name_in_archive, $file_contents)) {
                         $this->ziparchive_status();
                         trigger_error(
                             sprintf(
                             // translators: the $1 is the name of the archive.
                                 esc_html__('Cannot add "%s" to zip archive!', 'backwpup'),
-                                $name_in_archive
+                                esc_html($name_in_archive)
                             ),
                             E_USER_ERROR
                         );
@@ -435,7 +548,7 @@ class BackWPup_Create_Archive
                             sprintf(
                             // translators: the $1 is the name of the archive.
                                 esc_html__('Cannot add "%s" to zip archive!', 'backwpup'),
-                                $name_in_archive
+                                esc_html($name_in_archive)
                             ),
                             E_USER_ERROR
                         );
@@ -458,7 +571,7 @@ class BackWPup_Create_Archive
                             sprintf(
                             // translators: The $1 is the tecnical error string from pclzip.
                                 esc_html__('PclZip archive add error: %s', 'backwpup'),
-                                $this->pclzip->errorInfo(true)
+                                esc_html((string) $this->pclzip->errorInfo(true))
                             ),
                             E_USER_ERROR
                         );
@@ -483,7 +596,7 @@ class BackWPup_Create_Archive
      */
     public function add_empty_folder($folder_name, $name_in_archive)
     {
-        $folder_name = trim($folder_name);
+        $folder_name = trim((string) $folder_name);
 
         if (empty($folder_name)) {
             trigger_error(
@@ -503,7 +616,7 @@ class BackWPup_Create_Archive
                         'Folder path to add to archive',
                         'backwpup'
                     ),
-                    $folder_name
+                    esc_html($folder_name)
                 ),
                 E_USER_WARNING
             );
@@ -541,7 +654,7 @@ class BackWPup_Create_Archive
                         sprintf(
                         // translators: $1 is the name of the archive.
                             esc_html__('Cannot add "%s" to zip archive!', 'backwpup'),
-                            $name_in_archive
+                            esc_html($name_in_archive)
                         ),
                         E_USER_WARNING
                     );
@@ -573,7 +686,7 @@ class BackWPup_Create_Archive
             sprintf(
             // translators. $1 is the status returned by a call to a ZipArchive method.
                 esc_html_x('ZipArchive returns status: %s', 'Text of ZipArchive status Message', 'backwpup'),
-                $this->ziparchive->getStatusString()
+                esc_html((string) $this->ziparchive->getStatusString())
             ),
             E_USER_ERROR
         );
@@ -595,51 +708,20 @@ class BackWPup_Create_Archive
             return false;
         }
 
+        $source_size = filesize($file_name);
+        $source_size = false === $source_size ? null : $source_size;
+
+        $position = $this->tar_resolve_write_position($name_in_archive, 'file', $source_size);
+        if ('skip' === $position['action']) {
+            return true;
+        }
+
         if (!$this->check_archive_filesize($file_name)) {
             return false;
         }
 
         $chunk_size = 1024 * 1024 * 4;
         $filename = $name_in_archive;
-        $filename_prefix = '';
-
-        // Split filename larger than 100 chars
-        if (100 < strlen($name_in_archive)) {
-            $filename_offset = strlen($name_in_archive) - 100;
-            $split_pos = strpos($name_in_archive, '/', $filename_offset);
-
-            if ($split_pos === false) {
-                $split_pos = strrpos($name_in_archive, '/');
-            }
-
-            $filename = substr($name_in_archive, $split_pos + 1);
-            $filename_prefix = substr($name_in_archive, 0, $split_pos);
-
-            if (strlen($filename) > 100) {
-                $filename = substr($filename, -100);
-                trigger_error(
-                    sprintf(
-                    // translators: $1 is the file name.
-                        esc_html__('File name "%1$s" is too long to be saved correctly in %2$s archive!', 'backwpup'),
-                        $name_in_archive,
-                        $this->method
-                    ),
-                    E_USER_WARNING
-                );
-            }
-
-            if (155 < strlen($filename_prefix)) {
-                trigger_error(
-                    sprintf(
-                    // translators: $1 is the file name to use in the archive.
-                        esc_html__('File path "%1$s" is too long to be saved correctly in %2$s archive!', 'backwpup'),
-                        $name_in_archive,
-                        $this->method
-                    ),
-                    E_USER_WARNING
-                );
-            }
-        }
 
         // Get file stat.
         $file_stat = stat($file_name);
@@ -663,8 +745,7 @@ class BackWPup_Create_Archive
             $file_stat['mtime'],
             0,
             $owner,
-            $group,
-            $filename_prefix
+            $group
         );
 
         $fd = false;
@@ -675,7 +756,7 @@ class BackWPup_Create_Archive
                 trigger_error(
                     sprintf(
                         esc_html__('Cannot open source file %s for archiving. Writing an empty file.', 'backwpup'),
-                        $file_name
+                        esc_html($file_name)
                     ),
                     E_USER_WARNING
                 );
@@ -684,7 +765,12 @@ class BackWPup_Create_Archive
 
         if ($fd) {
             // Read/write files in 512 bit Blocks.
-            while (($content = fread($fd, 512)) != '') { // phpcs:ignore
+            while (!feof($fd)) {
+                $content = fread($fd, 512); // phpcs:ignore
+                if ('' === $content || false === $content) {
+                    break;
+                }
+
                 $chunk .= pack('a512', $content);
 
                 if (strlen($chunk) >= $chunk_size) {
@@ -699,6 +785,9 @@ class BackWPup_Create_Archive
         if (!empty($chunk)) {
             $this->fwrite($chunk);
         }
+
+        $end_offset = $this->tar_current_offset();
+        $this->tar_index_mark_done($name_in_archive, $end_offset, $file_stat['size']);
 
         return true;
     }
@@ -716,54 +805,17 @@ class BackWPup_Create_Archive
 
         $name_in_archive = trailingslashit($name_in_archive);
 
-        $tar_filename = $name_in_archive;
-        $tar_filename_prefix = '';
-
-        // Split filename larger than 100 chars.
-        if (100 < strlen($name_in_archive)) {
-            $filename_offset = strlen($name_in_archive) - 100;
-            $split_pos = strpos($name_in_archive, '/', $filename_offset);
-
-            if ($split_pos === false) {
-                $split_pos = strrpos(untrailingslashit($name_in_archive), '/');
-            }
-
-            $tar_filename = substr($name_in_archive, $split_pos + 1);
-            $tar_filename_prefix = substr($name_in_archive, 0, $split_pos);
-
-            if (strlen($tar_filename) > 100) {
-                $tar_filename = substr($tar_filename, -100);
-                trigger_error(
-                    sprintf(
-                    // translators: $1 is the name of the folder. $2 is the archive name.
-                        esc_html__(
-                            'Folder name "%1$s" is too long to be saved correctly in %2$s archive!',
-                            'backwpup'
-                        ),
-                        $name_in_archive,
-                        $this->method
-                    ),
-                    E_USER_WARNING
-                );
-            }
-
-            if (strlen($tar_filename_prefix) > 155) {
-                trigger_error(
-                    sprintf(
-                    // translators: $1 is the name of the folder. $2 is the archive name.
-                        esc_html__(
-                            'Folder path "%1$s" is too long to be saved correctly in %2$s archive!',
-                            'backwpup'
-                        ),
-                        $name_in_archive,
-                        $this->method
-                    ),
-                    E_USER_WARNING
-                );
-            }
+        $position = $this->tar_resolve_write_position($name_in_archive, 'dir', 0);
+        if ('skip' === $position['action']) {
+            return true;
         }
 
+        $tar_filename = $name_in_archive;
+
         $file_stat = @stat($folder_name);
+        if (!$file_stat) {
+            return false;
+        }
         // Retrieve owner and group for the file.
         [$owner, $group] = $this->posix_getpwuid($file_stat['uid'], $file_stat['gid']);
 
@@ -777,11 +829,13 @@ class BackWPup_Create_Archive
             $file_stat['mtime'],
             5,
             $owner,
-            $group,
-            $tar_filename_prefix
+            $group
         );
 
         $this->fwrite($header);
+
+        $end_offset = $this->tar_current_offset();
+        $this->tar_index_mark_done($name_in_archive, $end_offset, 0);
 
         return true;
     }
@@ -806,8 +860,7 @@ class BackWPup_Create_Archive
         }
 
         if (is_resource($this->filehandler)) {
-            $stats = fstat($this->filehandler);
-            $archive_size = $stats['size'];
+            $archive_size = $this->tar_current_offset();
         } else {
             $archive_size = filesize($this->file);
             if ($archive_size === false) {
@@ -823,7 +876,7 @@ class BackWPup_Create_Archive
                         'If %s will be added to your backup archive, the archive will be too large for operations with this PHP Version. You might want to consider splitting the backup job in multiple jobs with less files each.',
                         'backwpup'
                     ),
-                    $file_to_add
+                    esc_html($file_to_add)
                 ),
                 E_USER_ERROR
             );
@@ -846,12 +899,58 @@ class BackWPup_Create_Archive
      * @param int    $typeflag The type of the item. 0 for File and 5 for Directory.
      * @param string $owner    the owner Name
      * @param string $group    the group Name
-     * @param string $prefix   the item prefix
      *
      * @return mixed|string
      */
-    private function make_tar_headers($name, $mode, $uid, $gid, $size, $mtime, $typeflag, $owner, $group, $prefix)
+    private function make_tar_headers($name, $mode, $uid, $gid, $size, $mtime, $typeflag, $owner, $group)
     {
+        $headers = '';
+        $orig_name = $name;
+        $prefix = '';
+
+        // Attempt to split filename larger than 100 chars.
+        if (100 < strlen($name)) {
+            $filename_offset = strlen($name) - 100;
+            $split_pos = strpos($name, '/', $filename_offset);
+
+            if (false === $split_pos) {
+                $split_pos = strrpos($name, '/');
+            }
+
+            $prefix = substr($name, 0, $split_pos);
+            $name = substr($name, $split_pos + 1);
+        }
+
+        // Handle long filenames (GNU tar format).
+        // If the name is longer than 100 or the prefix is longer than 155 we
+        // need to encode the name as a preceding chunk with a @LongLink
+        // header and truncate the filename in the actual header that we write.
+        if (strlen($name) > 100 || strlen($prefix) > 155) {
+            $longlink_content = $orig_name . "\0";
+
+            $longlink_header = $this->make_tar_headers(
+                '@LongLink',
+                '0000777',
+                0,
+                0,
+                strlen($longlink_content),
+                time(),
+                'L',
+                'root',
+                'root'
+            );
+
+            // Pack into binary to a multiple of 512.
+            $chunk_count = ceil(strlen($longlink_content) / 512);
+            $packed_size = $chunk_count * 512;
+            $packed_content = pack('a' . $packed_size, $longlink_content);
+
+            $headers .= $longlink_header . $packed_content;
+            // Truncate name for actual header.
+            $name = substr($orig_name, 0, 100);
+            $prefix = '';
+        }
+
         // Generate the TAR header for this file
         $chunk = pack(
             'a100a8a8a8a12a12a8a1a100a6a2a32a32a8a8a155a12',
@@ -865,7 +964,7 @@ class BackWPup_Create_Archive
             $typeflag, //type of file  0 or null = File, 5=Dir
             '', //name of linked file  100
             'ustar', //USTAR indicator  6
-            '00', //USTAR version  2
+            '  ', //USTAR version (00 for ustar, double-space for gnutar)  2
             $owner, //owner user name 32
             $group, //owner group name 32
             '', //device major number 8
@@ -882,8 +981,303 @@ class BackWPup_Create_Archive
         }
 
         $checksum = pack('a8', sprintf('%07o', $checksum));
+        $chunk = substr_replace($chunk, $checksum, 148, 8);
 
-        return substr_replace($chunk, $checksum, 148, 8);
+        return $headers . $chunk;
+    }
+
+    /**
+     * Initialize the Tar/TarGz duplicate-entry sidecar index.
+     *
+     * Called once from the constructor, right after the archive filehandler is
+     * opened, for the Tar and TarGz branches only.
+     *
+     * @param bool $is_fresh_start Whether the archive file did not exist before this
+     *                             instance opened it (i.e. this is not a resume).
+     */
+    private function tar_index_init($is_fresh_start)
+    {
+        if ($is_fresh_start) {
+            if (file_exists($this->tar_index_file)) {
+                @unlink($this->tar_index_file); // phpcs:ignore
+            }
+
+            $this->tar_index = [];
+        } else {
+            $this->tar_index = $this->tar_index_load();
+        }
+
+        $this->tar_index_handle = $this->fopen($this->tar_index_file, 'ab');
+    }
+
+    /**
+     * Close the sidecar handle and delete the sidecar file.
+     */
+    private function tar_index_close_and_delete()
+    {
+        if (is_resource($this->tar_index_handle)) {
+            fclose($this->tar_index_handle); // phpcs:ignore
+            $this->tar_index_handle = null;
+        }
+
+        if ('' !== $this->tar_index_file && file_exists($this->tar_index_file)) {
+            @unlink($this->tar_index_file); // phpcs:ignore
+        }
+    }
+
+    /**
+     * Load and replay the NDJSON sidecar log into an in-memory index.
+     *
+     * Reads the log line by line and replays each decoded line into the index keyed by
+     * name_in_archive, so the last line written for a given name always wins. Fails open
+     * (empty index, E_USER_WARNING) if the log is missing or unreadable; a corrupt line
+     * is skipped with its own warning rather than aborting the whole replay.
+     *
+     * @return array
+     */
+    private function tar_index_load()
+    {
+        $index = [];
+        $last_entry = null;
+
+        if (!is_file($this->tar_index_file) || !is_readable($this->tar_index_file)) {
+            trigger_error(
+                esc_html__('Tar duplicate-entry index sidecar file is missing or unreadable; duplicate-entry protection is disabled for this run.', 'backwpup'),
+                E_USER_WARNING
+            );
+
+            return $index;
+        }
+
+        $handle = fopen($this->tar_index_file, 'rb'); // phpcs:ignore
+
+        if (!is_resource($handle)) {
+            trigger_error(
+                esc_html__('Tar duplicate-entry index sidecar file could not be opened; duplicate-entry protection is disabled for this run.', 'backwpup'),
+                E_USER_WARNING
+            );
+
+            return $index;
+        }
+
+        while (!feof($handle)) {
+            $line = fgets($handle);
+
+            if (false === $line) {
+                break;
+            }
+
+            $line = trim($line);
+
+            if ('' === $line) {
+                continue;
+            }
+
+            $decoded = json_decode($line, true);
+
+            // A truncated or corrupt line (e.g. a hard kill mid-write) is dropped: the name
+            // falls back to an earlier fully-written line or is treated as brand new.
+            if (!is_array($decoded) || !isset($decoded['name'])) {
+                trigger_error(
+                    esc_html__('Skipping corrupt line in Tar duplicate-entry index sidecar file.', 'backwpup'),
+                    E_USER_WARNING
+                );
+
+                continue;
+            }
+
+            $index[$decoded['name']] = $decoded;
+            $last_entry = $decoded;
+        }
+
+        fclose($handle); // phpcs:ignore
+
+        // Size-only validation: reject the sidecar if the real archive file is smaller than
+        // what its last recorded entry implies. A legitimate resume can only make the real
+        // file at least as large as expected, so the comparison is strictly "<".
+        if (null !== $last_entry) {
+            $expected_min_size = 'done' === ($last_entry['status'] ?? null)
+                ? ($last_entry['end_offset'] ?? null)
+                : ($last_entry['start_offset'] ?? null);
+
+            // A malformed/missing offset is itself a reason not to trust the sidecar.
+            if (!is_int($expected_min_size)) {
+                $expected_min_size = PHP_INT_MAX;
+            }
+
+            clearstatcache(true, $this->file);
+            $real_size = is_file($this->file) ? filesize($this->file) : false;
+
+            if (false === $real_size || $real_size < $expected_min_size) {
+                trigger_error(
+                    esc_html__('Tar duplicate-entry index sidecar does not match its archive file (the archive is smaller than the sidecar expects); discarding the stale sidecar instead of trusting it, so no file already marked done is silently skipped from the new archive.', 'backwpup'),
+                    E_USER_WARNING
+                );
+
+                if (file_exists($this->tar_index_file)) {
+                    @unlink($this->tar_index_file); // phpcs:ignore
+                }
+
+                return [];
+            }
+        }
+
+        return $index;
+    }
+
+    /**
+     * Append one entry as a single NDJSON line to the sidecar log.
+     *
+     * @param array $entry Entry to persist.
+     */
+    private function tar_index_append(array $entry)
+    {
+        if (!is_resource($this->tar_index_handle)) {
+            return;
+        }
+
+        fwrite($this->tar_index_handle, wp_json_encode($entry) . "\n"); // phpcs:ignore
+        fflush($this->tar_index_handle);
+    }
+
+    /**
+     * Record that a Tar/TarGz entry write has started, before any bytes are written for it.
+     *
+     * @param string $name         name_in_archive for the entry.
+     * @param string $type         'file'|'dir'.
+     * @param int    $start_offset Byte offset where the entry's header begins.
+     */
+    private function tar_index_mark_pending($name, $type, $start_offset)
+    {
+        $entry = [
+            'name' => $name,
+            'type' => $type,
+            'status' => 'pending',
+            'start_offset' => $start_offset,
+            'end_offset' => null,
+            'size' => null,
+        ];
+
+        $this->tar_index[$name] = $entry;
+
+        $this->tar_index_append($entry);
+    }
+
+    /**
+     * Record that a Tar/TarGz entry write has completed.
+     *
+     * @param string $name       name_in_archive for the entry.
+     * @param int    $end_offset Byte offset right after the entry has been fully written.
+     * @param int    $size       Source size recorded at completion; 0 for directories.
+     */
+    private function tar_index_mark_done($name, $end_offset, $size)
+    {
+        $existing = isset($this->tar_index[$name]) ? $this->tar_index[$name] : [];
+
+        $entry = array_merge(
+            $existing,
+            [
+                'name' => $name,
+                'status' => 'done',
+                'end_offset' => $end_offset,
+                'size' => $size,
+            ]
+        );
+
+        $this->tar_index[$name] = $entry;
+
+        $this->tar_index_append($entry);
+    }
+
+    /**
+     * Get the current, fully-flushed byte offset of the archive filehandler.
+     *
+     * @return int
+     */
+    private function tar_current_offset()
+    {
+        if (!is_resource($this->filehandler)) {
+            return 0;
+        }
+
+        fflush($this->filehandler);
+
+        $stats = fstat($this->filehandler);
+
+        return isset($stats['size']) ? (int) $stats['size'] : 0;
+    }
+
+    /**
+     * Resolve whether a Tar/TarGz entry write should proceed, be skipped, or overwrite
+     * the last-written entry in place.
+     *
+     * Whenever the resolved action is 'write', the pending state (and any truncation)
+     * is persisted to the sidecar log before returning.
+     *
+     * @param string   $name_in_archive Name of entry within the archive.
+     * @param string   $type            'file'|'dir'.
+     * @param int|null $source_size     filesize() for files; 0 for directories; null if unknown.
+     *
+     * @return array{action:string,offset:int}
+     */
+    private function tar_resolve_write_position($name_in_archive, $type, $source_size)
+    {
+        $current_offset = $this->tar_current_offset();
+        $existing = isset($this->tar_index[$name_in_archive]) ? $this->tar_index[$name_in_archive] : null;
+
+        if (null === $existing) {
+            $this->tar_index_mark_pending($name_in_archive, $type, $current_offset);
+
+            return [
+                'action' => 'write',
+                'offset' => $current_offset,
+            ];
+        }
+
+        $is_last_entry = 'pending' === ($existing['status'] ?? null)
+            || (isset($existing['end_offset']) && $existing['end_offset'] === $current_offset);
+
+        if (
+            'done' === ($existing['status'] ?? null)
+            && ($existing['type'] ?? null) === $type
+            && null !== $source_size
+            && ($existing['size'] ?? null) === $source_size
+        ) {
+            // Identical entry already fully written, skip like the ZIP writer does.
+            return [
+                'action' => 'skip',
+                'offset' => $current_offset,
+            ];
+        }
+
+        if ($is_last_entry && isset($existing['start_offset']) && is_int($existing['start_offset'])) {
+            // Safe to discard and rewrite: nothing has been written after this entry.
+            ftruncate($this->filehandler, $existing['start_offset']);
+            fseek($this->filehandler, $existing['start_offset']);
+
+            $this->tar_index_mark_pending($name_in_archive, $type, $existing['start_offset']);
+
+            return [
+                'action' => 'write',
+                'offset' => $existing['start_offset'],
+            ];
+        }
+
+        // Entry differs but is not the last one written: cannot safely rewrite mid-stream
+        // without corrupting subsequent archive data. Skip, never duplicate.
+        trigger_error(
+            sprintf(
+                /* translators: %s: file name in archive. */
+                esc_html__('Skipping "%s": already present in archive at a different size and cannot be safely rewritten mid-stream.', 'backwpup'),
+                esc_html($name_in_archive)
+            ),
+            E_USER_WARNING
+        );
+
+        return [
+            'action' => 'skip',
+            'offset' => $current_offset,
+        ];
     }
 
     /**
@@ -934,7 +1328,7 @@ class BackWPup_Create_Archive
                 sprintf(
                 // translators: $1 is the filename to add into the archive.
                     esc_html__('Cannot open source file %s.', 'backwpup'),
-                    $filename
+                    esc_html($filename)
                 ),
                 E_USER_WARNING
             );
