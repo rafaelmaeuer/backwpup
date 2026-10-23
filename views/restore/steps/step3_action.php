@@ -1,4 +1,10 @@
-<?php /** @var \stdClass $bind */ ?>
+<?php
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+/** @var \stdClass $bind */
+?>
 <div
 	id="restore_step"
 	class="metabox-holder postbox backwpup-cleared-postbox backwpup-full-width action"

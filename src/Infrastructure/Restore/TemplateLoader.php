@@ -393,7 +393,8 @@ final class TemplateLoader
             ? sanitize_text_field((string) $_GET['backwpup_action_nonce'])
             : '';
 
-        if ($nonce === 'undefined' || $nonce === 'null') {
+        // Only reuse a nonce that is actually valid, never echo arbitrary request data back.
+        if ($nonce !== '' && !wp_verify_nonce($nonce, 'backwpup_action_nonce')) {
             $nonce = '';
         }
 

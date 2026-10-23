@@ -1,4 +1,10 @@
-<?php /** @var \stdClass $bind */ ?>
+<?php
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+/** @var \stdClass $bind */
+?>
 <nav>
 	<ul>
 		<li>
