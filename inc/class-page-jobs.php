@@ -288,13 +288,8 @@ class BackWPup_Page_Jobs extends WP_List_Table
                 $r .= esc_html__('Not scheduled!', 'backwpup') . '<br />';
             }
         } elseif (BackWPup_Option::get($item, 'activetype') === 'easycron') {
-            $easycron_status = BackWPup_EasyCron::status($item);
-            if (!empty($easycron_status)) {
-                $nextrun = BackWPup_Cron::cron_next($easycron_status['cron_expression']) + (int) ((float) get_option('gmt_offset') * 3600);
-                $r .= '<span title="' . esc_attr(sprintf(__('Cron: %s', 'backwpup'), $easycron_status['cron_expression'])) . '">' . esc_html(sprintf(__('%1$s at %2$s by EasyCron', 'backwpup'), date_i18n(get_option('date_format'), $nextrun, true), date_i18n(get_option('time_format'), $nextrun, true))) . '</span><br />';
-            } else {
-                $r .= esc_html__('Not scheduled!', 'backwpup') . '<br />';
-            }
+            // EasyCron support was removed, the job is no longer scheduled until saved with another start type.
+            $r .= esc_html__('Not scheduled!', 'backwpup') . '<br />';
         } elseif (BackWPup_Option::get($item, 'activetype') === 'link') {
             $r .= esc_html__('External link', 'backwpup') . '<br />';
         } else {
