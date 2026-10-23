@@ -1,10 +1,13 @@
-=== BackWPup – WordPress Backup & Restore Plugin ===
+=== BackWPup v4 Backport – WordPress Backup & Restore Plugin ===
+This backport takes all updates and security patches from v5 keeping the old UI.
+Versioning: The v5 release is mirrored, e.g. v5.7.8 --> v4.7.8 for simplicity.
+
 Contributors: backwpup, wp_rocket, imagify
 Tags: backup, restore, cloud backup, database backup, wordpress backup
 Requires at least: 4.9
 Tested up to: 6.6
 Requires PHP: 7.4
-Stable tag: 4.1.7
+Stable tag: 4.7.8
 License: GPLv2+
 
 Create a complete WordPress backup easily. Schedule automatic backups, store securely, and restore effortlessly with the best WordPress backup plugin!
@@ -204,8 +207,37 @@ Yes. You need to have writing access to the wp-config.php file (usually residing
 
 == Changelog ==
 
+= 4.7.8 =
+Release date: oct 23, 2026
+
+Maintenance release of the 4.x line (classic UI) with engine and security fixes backported from BackWPup 5.0 - 5.7.8. Version 4.x.y mirrors the 5.x.y release it is synced with.
+* Security : Scheduled jobs can no longer be started by unauthenticated requests; external start links use a per-job token
+* Security : Prevent path traversal when extracting ZIP archives during restore
+* Security : Restore working directories use unpredictable names and abandoned restore files are cleaned up
+* Security : Fix XSS on the restore, jobs, logs and backups pages and in download error messages
+* Security : Enforce capability and nonce checks on settings, job edit, backup download and log actions
+* Security : Backup, log and temp folders are always protected; .htaccess rules work on Apache 2.4
+* Security : Harden unserialize of job data, SQL identifiers in database dumps and sendmail command validation
+* Fixed : ZIP backups resumed during archive creation could miss files; Tar/TarGz duplicate entries after resume
+* Fixed : Long file names in Tar archives
+* Fixed : Folder scan losing sub folders after restart and stalling on large sites
+* Fixed : Backup continued after abort; incomplete cron cleanup; schedules respect the site timezone
+* Fixed : Settings save disabled folder protection and other hidden options
+* Fixed : Dropbox upload resume, FTP login/passive mode/download, email sender, SugarSync quota handling
+* Fixed : Restoring multiple backups consecutively; cache flushed after database restore; faster extraction
+* Fixed : PHP 8.1 - 8.4 compatibility (WXR export TypeError, deprecations, disabled putenv/set_time_limit)
+* Removed : EasyCron integration (service discontinued)
+* Changed : Update bundled libraries (phpseclib 3.0.57, Archive_Tar 1.6.1, Guzzle 7.10, AWS SDK 3.337, Monolog 2.11)
+* Changed : Updates from wordpress.org are blocked (Update URI) so the 4.x line is not replaced by 5.x
+
+= 4.1.8 =
+Release date: dec 18, 2024
+
+* Fixed : One drive is not configured properly message
+
 = 4.1.7 =
 Release date: nov 25, 2024
+
 * Changed : Update dependencies :
     ** guzzlehttp/guzzle to 7.0
     ** onedrive-php-sdk to 3.2.0
