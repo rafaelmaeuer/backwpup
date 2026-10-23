@@ -39,7 +39,7 @@ class BackWPup_Install
         if (is_multisite()) {
             add_site_option('backwpup_jobs', []);
         } else {
-            add_option('backwpup_jobs', [], null, 'no');
+            add_option('backwpup_jobs', [], '', 'no');
         }
 
 		// remove old schedule.
@@ -52,10 +52,15 @@ class BackWPup_Install
 				BackWPup_EasyCron::update_to_wpcron( $id );
 			}
 		}
+		// EasyCron is discontinued: drop stored credentials.
+		delete_site_option( 'backwpup_cfg_easycronapikey' );
+		delete_site_option( 'backwpup_cfg_easycronjobid' );
 		// make new schedule.
 		$activejobs = BackWPup_Option::get_job_ids( 'activetype', 'wpcron' );
 		if ( ! empty( $activejobs ) ) {
 			foreach ( $activejobs as $id ) {
+				// Remove all (possibly duplicated) events of the job before rescheduling.
+				wp_clear_scheduled_hook( 'backwpup_cron', [ 'arg' => $id ] );
 				$cron_next = BackWPup_Cron::cron_next( BackWPup_Option::get( $id, 'cron' ) );
 				wp_schedule_single_event( $cron_next, 'backwpup_cron', [ 'arg' => $id ] );
 			}
@@ -66,20 +71,38 @@ class BackWPup_Install
             wp_schedule_event(time(), 'twicedaily', 'backwpup_check_cleanup');
         }
 
-        //add capabilities to administrator role
-        $role = get_role('administrator');
-        if (is_object($role) && method_exists($role, 'add_cap')) {
-            $role->add_cap('backwpup');
-            $role->add_cap('backwpup_jobs');
-            $role->add_cap('backwpup_jobs_edit');
-            $role->add_cap('backwpup_jobs_start');
-            $role->add_cap('backwpup_backups');
-            $role->add_cap('backwpup_backups_download');
-            $role->add_cap('backwpup_backups_delete');
-            $role->add_cap('backwpup_logs');
-            $role->add_cap('backwpup_logs_delete');
-            $role->add_cap('backwpup_settings');
-            $role->add_cap('backwpup_restore');
+        $backwpup_caps = [
+            'backwpup',
+            'backwpup_jobs',
+            'backwpup_jobs_edit',
+            'backwpup_jobs_start',
+            'backwpup_backups',
+            'backwpup_backups_download',
+            'backwpup_backups_delete',
+            'backwpup_logs',
+            'backwpup_logs_delete',
+            'backwpup_settings',
+            'backwpup_restore',
+        ];
+        if (!is_multisite()) {
+            //add capabilities to administrator role
+            $role = get_role('administrator');
+            if (is_object($role) && method_exists($role, 'add_cap')) {
+                foreach ($backwpup_caps as $cap) {
+                    $role->add_cap($cap);
+                }
+            }
+        } else {
+            // On multisite only super admins may use BackWPup (backups contain the whole network).
+            // Remove the caps that older versions granted to the main site's administrator role.
+            switch_to_blog(get_main_site_id());
+            $role = get_role('administrator');
+            if (is_object($role) && method_exists($role, 'remove_cap')) {
+                foreach ($backwpup_caps as $cap) {
+                    $role->remove_cap($cap);
+                }
+            }
+            restore_current_blog();
         }
 
         //add/overwrite roles
@@ -154,7 +177,7 @@ class BackWPup_Install
 
         //add new option default structure and without auto load cache
         if (!is_multisite()) {
-            add_option('backwpup_jobs', [], null, 'no');
+            add_option('backwpup_jobs', [], '', 'no');
         }
 
         //upgrade cfg
@@ -347,6 +370,10 @@ class BackWPup_Install
             }
         }
         wp_clear_scheduled_hook('backwpup_check_cleanup');
+        // Also remove events of jobs that changed or lost their schedule.
+        if (function_exists('wp_unschedule_hook')) {
+            wp_unschedule_hook('backwpup_cron');
+        }
 
         $activejobs = BackWPup_Option::get_job_ids('activetype', 'easycron');
         if (!empty($activejobs)) {
