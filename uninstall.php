@@ -18,6 +18,9 @@ if ( ! class_exists( \BackWPup::class ) ) {
         $wpdb->query('DELETE FROM ' . $wpdb->options . " WHERE option_name LIKE '%backwpup_%' ");
     }
 
+    // Delete per-user data (dismissed notices, list table screen options, message boxes).
+    $wpdb->query('DELETE FROM ' . $wpdb->usermeta . " WHERE meta_key LIKE '%backwpup_%' ");
+
     //delete Backwpup user roles
     // Special handling for multisite when network-activated.
     if (is_multisite()) {

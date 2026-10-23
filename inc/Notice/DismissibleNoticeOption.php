@@ -247,8 +247,9 @@ class DismissibleNoticeOption {
 
 		$is_ajax    = ! empty( $data['isAjax'] );
 		$action     = empty( $data['action'] ) ? '' : $data['action'];
-		$notice     = empty( $data['notice'] ) ? '' : $data['notice'];
-		$expiration = empty( $data['expiration'] ) ? self::DEFAULT_EXPIRATION : $data['expiration'];
+		$notice     = empty( $data['notice'] ) || ! is_string( $data['notice'] ) ? '' : sanitize_key( $data['notice'] );
+		$expiration = empty( $data['expiration'] ) ? self::DEFAULT_EXPIRATION : absint( $data['expiration'] );
+		$expiration = $expiration > 0 ? (int) $expiration : (int) self::DEFAULT_EXPIRATION;
 
         if (!$action
             || !$notice
@@ -263,7 +264,7 @@ class DismissibleNoticeOption {
         $capability = empty(self::$setup[$key][$notice]) ? '' : self::$setup[$key][$notice];
 
         if (!$capability && !empty(self::$setup[$swap_key][$notice])) {
-            return [self::SKIP, '', $is_ajax];
+            return [self::SKIP, '', $is_ajax, 0];
         }
 
         if (!$capability || !current_user_can($capability)) {

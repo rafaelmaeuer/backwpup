@@ -3,6 +3,7 @@
 use Inpsyde\BackWPup\Infrastructure\Restore\Restore;
 use Inpsyde\BackWPup\Notice;
 use Inpsyde\BackWPup\Notice\DropboxNotice;
+use Inpsyde\BackWPup\Notice\MissingCurlNotice;
 use Inpsyde\BackWPup\Notice\NoticeView;
 use Inpsyde\BackWPup\Notice\PhpNotice;
 use Inpsyde\BackWPup\Notice\WordPressNotice;
@@ -155,11 +156,13 @@ final class BackWPup_Admin
             $message_error = '<div' . $message_id . ' class="bwu-message-error">' . $message_error . '</div>';
         }
 
+        $output = wp_kses_post($message_updated . $message_error);
+
         if ($echo) {
-            echo $message_updated . $message_error;
+            echo $output; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped with wp_kses_post above.
         }
 
-        return $message_updated . $message_error;
+        return $output;
     }
 
     /**
@@ -238,6 +241,15 @@ final class BackWPup_Admin
 			false // Not dismissible.
 		);
 		$dropbox_notice->init( DropboxNotice::TYPE_ADMIN );
+
+		// Show notice on BackWPup pages if PHP cURL is missing.
+		if ( ! class_exists( MissingCurlNotice::class ) ) {
+			require_once __DIR__ . '/Notice/MissingCurlNotice.php';
+		}
+		$missing_curl_notice = new MissingCurlNotice(
+			new NoticeView( MissingCurlNotice::ID )
+		);
+		$missing_curl_notice->init( MissingCurlNotice::TYPE_ADMIN );
 
 		$evaluate_notice = new EvaluateNotice(
 			new NoticeView( EvaluateNotice::ID )
@@ -578,53 +590,58 @@ final class BackWPup_Admin
      */
     public function save_post_form()
     {
+        // Capability required for each page that can be saved through this handler.
         $allowed_pages = [
-            'backwpupeditjob',
-            'backwpupinformation',
-            'backwpupsettings',
+            'backwpupeditjob' => 'backwpup_jobs_edit',
+            'backwpupsettings' => 'backwpup_settings',
         ];
 
-        if (!in_array($_POST['page'], $allowed_pages, true)) {
-            wp_die(esc_html__('Cheating, huh?', 'backwpup'));
+        $post_page = isset($_POST['page']) ? sanitize_text_field(wp_unslash((string) $_POST['page'])) : '';
+        $post_anchor = isset($_POST['anchor']) ? sanitize_text_field(wp_unslash((string) $_POST['anchor'])) : '';
+        $post_tab = isset($_POST['tab']) ? sanitize_title_with_dashes(wp_unslash((string) $_POST['tab'])) : null;
+        $post_nexttab = isset($_POST['nexttab']) ? sanitize_title_with_dashes(wp_unslash((string) $_POST['nexttab'])) : null;
+
+        if (!isset($allowed_pages[$post_page])) {
+            wp_die(esc_html__('Cheating, huh?', 'backwpup'), '', ['response' => 403]);
         }
 
         //nonce check
-        check_admin_referer($_POST['page'] . '_page');
+        check_admin_referer($post_page . '_page');
 
-        if (!current_user_can('backwpup')) {
-            wp_die(esc_html__('Cheating, huh?', 'backwpup'));
+        if (!current_user_can('backwpup') || !current_user_can($allowed_pages[$post_page])) {
+            wp_die(esc_html__('Cheating, huh?', 'backwpup'), '', ['response' => 403]);
+        }
+
+        // Only allow plain fragment anchors (e.g. "#foo") to be appended to the redirect.
+        if ($post_anchor !== '' && preg_match('/^#[A-Za-z0-9_\-]+$/', $post_anchor) !== 1) {
+            $post_anchor = '';
         }
 
         //build query for redirect
-        if (!isset($_POST['anchor'])) {
-            $_POST['anchor'] = null;
-        }
         $query_args = [];
-        if (isset($_POST['page'])) {
-            $query_args['page'] = $_POST['page'];
+        $query_args['page'] = $post_page;
+        if ($post_tab !== null) {
+            $query_args['tab'] = $post_tab;
         }
-        if (isset($_POST['tab'])) {
-            $query_args['tab'] = $_POST['tab'];
-        }
-        if (isset($_POST['tab'], $_POST['nexttab']) && $_POST['tab'] !== $_POST['nexttab']) {
-            $query_args['tab'] = $_POST['nexttab'];
+        if ($post_tab !== null && $post_nexttab !== null && $post_tab !== $post_nexttab) {
+            $query_args['tab'] = $post_nexttab;
         }
 
         $jobid = null;
         if (isset($_POST['jobid'])) {
-            $jobid = (int) $_POST['jobid'];
+            $jobid = absint($_POST['jobid']);
             $query_args['jobid'] = $jobid;
         }
 
         // Call method to save data
-        if ($_POST['page'] === 'backwpupeditjob') {
-            BackWPup_Page_Editjob::save_post_form($_POST['tab'], $jobid);
-        } elseif ($_POST['page'] === 'backwpupsettings') {
+        if ($post_page === 'backwpupeditjob') {
+            BackWPup_Page_Editjob::save_post_form((string) $post_tab, $jobid);
+        } elseif ($post_page === 'backwpupsettings') {
             $this->settings->save_post_form();
         }
 
         //Back to topic
-        wp_safe_redirect(add_query_arg($query_args, network_admin_url('admin.php')) . $_POST['anchor']);
+        wp_safe_redirect(add_query_arg($query_args, network_admin_url('admin.php')) . $post_anchor);
 
         exit;
     }
@@ -667,7 +684,7 @@ EOT;
                         '<a class="backwpup-get-pro" href="%s">Get BackWPup Pro now.</a>',
                         'backwpup'
                     ),
-                    __('http://backwpup.com', 'backwpup')
+                    esc_url(__('http://backwpup.com', 'backwpup'))
                 );
             }
 
@@ -689,15 +706,15 @@ EOT;
         $default_text = $update_footer_text;
 
         if (isset($_REQUEST['page']) && strstr((string) $_REQUEST['page'], 'backwpup')) {
-            $update_footer_text = '<span class="backwpup-update-footer"><a href="' . __(
+            $update_footer_text = '<span class="backwpup-update-footer"><a href="' . esc_url(__(
                 'http://backwpup.com',
                 'backwpup'
-            ) . '">' . BackWPup::get_plugin_data('Name') . '</a> ' . sprintf(
-                __(
+            )) . '">' . esc_html(BackWPup::get_plugin_data('Name')) . '</a> ' . sprintf(
+                esc_html__(
                     'version %s',
                     'backwpup'
                 ),
-                BackWPup::get_plugin_data('Version')
+                esc_html(BackWPup::get_plugin_data('Version'))
             ) . '</span>';
 
             return $update_footer_text . $default_text;
@@ -738,31 +755,32 @@ EOT;
         if (!empty($user->roles[0]) && in_array($user->roles[0], array_keys($backwpup_roles), true)) {
             return;
         } ?>
-		<h3><?php echo BackWPup::get_plugin_data('name'); ?></h3>
+		<h3><?php echo esc_html(BackWPup::get_plugin_data('name')); ?></h3>
 		<table class="form-table">
 			<tr>
 				<th>
-					<label for="backwpup_role"><?php _e('Add BackWPup Role', 'backwpup'); ?></label>
+					<label for="backwpup_role"><?php esc_html_e('Add BackWPup Role', 'backwpup'); ?></label>
 				</th>
 				<td>
 					<select name="backwpup_role" id="backwpup_role" style="display:inline-block; float:none;">
 						<option
-							value=""><?php _e(
+							value=""><?php esc_html_e(
             '&mdash; No additional role for BackWPup &mdash;',
             'backwpup'
         ); ?></option>
 						<?php
                         foreach ($backwpup_roles as $role => $role_value) {
-                            echo '<option value="' . $role . '" ' . selected(
+                            echo '<option value="' . esc_attr($role) . '" ' . selected(
                                 $user->has_cap($role),
                                 true,
                                 false
-                            ) . '>' . $role_value['name'] . '</option>';
+                            ) . '>' . esc_html($role_value['name']) . '</option>';
                         } ?>
 					</select>
 				</td>
 			</tr>
 		</table>
+		<?php wp_nonce_field('backwpup_user_role', 'backwpup_user_role_nonce'); ?>
 		<?php
     }
 
@@ -783,11 +801,19 @@ EOT;
             return;
         }
 
-        if (!isset($_POST['backwpup_role'])) {
+        if (!isset($_POST['backwpup_role'], $_POST['backwpup_user_role_nonce'])) {
             return;
         }
 
-        $backwpup_role = esc_attr($_POST['backwpup_role']);
+        if (!wp_verify_nonce(sanitize_text_field(wp_unslash((string) $_POST['backwpup_user_role_nonce'])), 'backwpup_user_role')) {
+            return;
+        }
+
+        if (!current_user_can('edit_user', $user_id)) {
+            return;
+        }
+
+        $backwpup_role = sanitize_key(wp_unslash((string) $_POST['backwpup_role']));
 
         //get BackWPup roles
         $backwpup_roles = [];
@@ -825,6 +851,12 @@ EOT;
     }
 
 	public function init() {
+		// Do not register any BackWPup admin hooks (restore AJAX endpoints, admin-post
+		// handlers, menus) for users without BackWPup access.
+		if ( ! current_user_can( 'backwpup' ) ) {
+			return;
+		}
+
 		$restore = new Restore();
 		$restore->set_hooks()->init();
 
@@ -850,10 +882,15 @@ EOT;
         add_action('admin_enqueue_scripts', [$this, 'admin_css']);
         //Save Form posts general
         add_action('admin_post_backwpup', [$this, 'save_post_form']);
-        //Save Form posts wizard
-        add_action('admin_post_backwpup_wizard', [\BackWPup_Pro_Page_Wizard::class, 'save_post_form']);
-        // Save form posts for support
-        add_action('admin_post_backwpup_support', [\BackWPup_Pro_Page_Support::class, 'save_post_form']);
+        // Pro-only form handlers; registering them without the classes would fatal on request.
+        if (\BackWPup::is_pro() && class_exists(\BackWPup_Pro_Page_Wizard::class)) {
+            //Save Form posts wizard
+            add_action('admin_post_backwpup_wizard', [\BackWPup_Pro_Page_Wizard::class, 'save_post_form']);
+        }
+        if (\BackWPup::is_pro() && class_exists(\BackWPup_Pro_Page_Support::class)) {
+            // Save form posts for support
+            add_action('admin_post_backwpup_support', [\BackWPup_Pro_Page_Support::class, 'save_post_form']);
+        }
         //Admin Footer Text replacement
         add_filter('admin_footer_text', [$this, 'admin_footer_text'], 100);
         add_filter('update_footer', [$this, 'update_footer'], 100);

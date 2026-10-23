@@ -25,6 +25,10 @@ use Inpsyde\BackWPup\Pro\License\LicenseSettingUpdater;
 use Inpsyde\BackWPup\Pro\Settings\EncryptionSettingsView;
 use Inpsyde\BackWPup\Pro\Settings\EncryptionSettingUpdater;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 if (!class_exists(\BackWPup::class, false)) {
     /**
      * Main BackWPup Plugin Class.
@@ -62,11 +66,17 @@ if (!class_exists(\BackWPup::class, false)) {
 
             self::$is_pro = file_exists(__DIR__ . '/inc/Pro/class-pro.php');
 
-            // Start upgrade if needed
+            // Start upgrade if needed.
+            // Deferred to `init` so translations used by the installer (role names)
+            // are not loaded too early (WordPress 6.7+ "_load_textdomain_just_in_time" notice).
             if (get_site_option('backwpup_version') !== self::get_plugin_data('Version')
                  || !wp_next_scheduled('backwpup_check_cleanup')
             ) {
-                BackWPup_Install::activate();
+                if (did_action('init')) {
+                    BackWPup_Install::activate();
+                } else {
+                    add_action('init', [\BackWPup_Install::class, 'activate'], 0);
+                }
             }
 
             $pluginData = [
@@ -101,6 +111,10 @@ if (!class_exists(\BackWPup::class, false)) {
                     BackWPup_Job::disable_caches();
                     // Add action for running jobs in wp-cron.php
                     add_action('wp_loaded', [\BackWPup_Cron::class, 'cron_active'], PHP_INT_MAX);
+                    // Pre-authenticate external (runext) job starts if supported.
+                    if (method_exists(\BackWPup_Cron::class, 'preauth_for_external_run')) {
+                        BackWPup_Cron::preauth_for_external_run();
+                    }
                 } else {
                     // Add cron actions
                     add_action('backwpup_cron', [\BackWPup_Cron::class, 'run']);
@@ -109,6 +123,11 @@ if (!class_exists(\BackWPup::class, false)) {
 
                 // If in cron the rest is not needed
                 return;
+            }
+
+            // Inject the configured user's auth cookie into WordPress's own spawn_cron() loopback if supported.
+            if (method_exists(\BackWPup_Cron::class, 'authenticate_cron_request')) {
+                add_filter('cron_request', [\BackWPup_Cron::class, 'authenticate_cron_request']);
             }
 
             // Deactivation hook
@@ -285,7 +304,7 @@ if (!class_exists(\BackWPup::class, false)) {
 			}
 
             if (!empty($name)) {
-                return self::$plugin_data[$name];
+                return self::$plugin_data[$name] ?? '';
             }
 
             return self::$plugin_data;
@@ -419,7 +438,7 @@ if (!class_exists(\BackWPup::class, false)) {
                 'can_sync' => false,
                 'needed' => [
                     'php_version' => '',
-                    'functions' => ['curl_exec'],
+                    'functions' => [],
                     'classes' => [],
                 ],
             ];
@@ -611,12 +630,13 @@ if (!class_exists(\BackWPup::class, false)) {
 
         exit(
         sprintf(
+            // translators: %1$s is the minimum PHP version, %2$s is the minimum WordPress version.
             esc_html__(
                 'BackWPup requires PHP version %1$s with spl extension or greater and WordPress %2$s or greater.',
                 'backwpup'
             ),
-            $system_requirements->php_minimum_version(),
-            $system_requirements->wp_minimum_version()
+            esc_html($system_requirements->php_minimum_version()),
+            esc_html($system_requirements->wp_minimum_version())
         )
         );
     }
