@@ -37,11 +37,11 @@ final class BackWPup_Page_Backups extends WP_List_Table
         }
 
         $jobdest = '';
-        if (isset($_GET['jobdets-button-top'])) {
-            $jobdest = sanitize_text_field($_GET['jobdest-top']);
+        if (isset($_GET['jobdets-button-top'], $_GET['jobdest-top'])) {
+            $jobdest = sanitize_text_field(wp_unslash((string) $_GET['jobdest-top']));
         }
-        if (isset($_GET['jobdets-button-bottom'])) {
-            $jobdest = sanitize_text_field($_GET['jobdest-bottom']);
+        if (isset($_GET['jobdets-button-bottom'], $_GET['jobdest-bottom'])) {
+            $jobdest = sanitize_text_field(wp_unslash((string) $_GET['jobdest-bottom']));
         }
 
         if (empty($jobdest)) {
@@ -54,7 +54,9 @@ final class BackWPup_Page_Backups extends WP_List_Table
             $_GET['jobdets-button-top'] = 'empty';
         }
 
-        [$this->jobid, $this->dest] = explode('_', (string) $jobdest);
+        $jobdest_parts = explode('_', (string) $jobdest, 2);
+        $this->jobid = absint($jobdest_parts[0]);
+        $this->dest = isset($jobdest_parts[1]) ? strtoupper(sanitize_key($jobdest_parts[1])) : '';
 
         if (!empty($this->destinations[$this->dest]['class'])) {
             /** @var BackWPup_Destinations $dest_object */
@@ -69,8 +71,10 @@ final class BackWPup_Page_Backups extends WP_List_Table
         }
 
         // Sorting.
-        $order = filter_input(INPUT_GET, 'order') ?: 'desc';
-        $orderby = filter_input(INPUT_GET, 'orderby') ?: 'time';
+        $order = isset($_GET['order']) ? strtolower(sanitize_key(wp_unslash((string) $_GET['order']))) : 'desc';
+        $order = in_array($order, ['asc', 'desc'], true) ? $order : 'desc';
+        $orderby = isset($_GET['orderby']) ? strtolower(sanitize_key(wp_unslash((string) $_GET['orderby']))) : 'time';
+        $orderby = in_array($orderby, ['time', 'file', 'folder', 'size'], true) ? $orderby : 'time';
         $tmp = [];
 
         if ($orderby === 'time') {
@@ -157,7 +161,7 @@ final class BackWPup_Page_Backups extends WP_List_Table
 
     public function no_items()
     {
-        _e('No files could be found. (List will be generated during next backup.)', 'backwpup');
+        esc_html_e('No files could be found. (List will be generated during next backup.)', 'backwpup');
     }
 
     public function get_bulk_actions()
@@ -181,22 +185,22 @@ final class BackWPup_Page_Backups extends WP_List_Table
         }
 
         if (count($destinations_list) === 1) {
-            echo '<input type="hidden" name="jobdest-' . $which . '" value="' . $destinations_list[0] . '">';
+            echo '<input type="hidden" name="jobdest-' . esc_attr($which) . '" value="' . esc_attr($destinations_list[0]) . '">';
 
             return;
         } ?>
 		<div class="alignleft actions">
 			<label for="jobdest-<?php echo esc_attr($which); ?>">
-				<select name="jobdest-<?php echo esc_html($which); ?>" class="postform"
+				<select name="jobdest-<?php echo esc_attr($which); ?>" class="postform"
 				        id="jobdest-<?php echo esc_attr($which); ?>">
 					<?php
                     foreach ($destinations_list as $jobdest) {
                         [$jobid, $dest] = explode('_', (string) $jobdest);
-                        echo "\t<option value=\"" . $jobdest . '" ' . selected(
+                        echo "\t<option value=\"" . esc_attr($jobdest) . '" ' . selected(
                             $this->jobid . '_' . $this->dest,
                             $jobdest,
                             false
-                        ) . '>' . $dest . ': ' . esc_html(BackWPup_Option::get(
+                        ) . '>' . esc_html($dest) . ': ' . esc_html(BackWPup_Option::get(
                             $jobid,
                             'name'
                         )) . '</option>' . PHP_EOL;
@@ -252,8 +256,8 @@ final class BackWPup_Page_Backups extends WP_List_Table
             }
             $dests = BackWPup_Option::get($jobid, 'destinations');
 
-            foreach ($dests as $dest) {
-                if (!$this->destinations[$dest]['class']) {
+            foreach ((array) $dests as $dest) {
+                if (empty($this->destinations[$dest]['class'])) {
                     continue;
                 }
                 $dest_class = BackWPup::get_destination($dest);
@@ -271,9 +275,9 @@ final class BackWPup_Page_Backups extends WP_List_Table
     {
         $actions = [];
 
-        $r = '<strong>' . esc_attr($item['filename']) . '</strong><br />';
+        $r = '<strong>' . esc_html($item['filename']) . '</strong><br />';
         if (!empty($item['info'])) {
-            $r .= esc_attr($item['info']) . '<br />';
+            $r .= esc_html($item['info']) . '<br />';
         }
 
         if (current_user_can('backwpup_backups_delete')) {
@@ -299,13 +303,13 @@ final class BackWPup_Page_Backups extends WP_List_Table
                         }
                     }
 
-                    $actions['download'] = '<a href="' . $downloadUrl . '" class="backup-download-link">Download</a>';
+                    $actions['download'] = '<a href="' . esc_url($downloadUrl) . '" class="backup-download-link">' . esc_html__('Download', 'backwpup') . '</a>';
                 }
             } catch (BackWPup_Factory_Exception $e) {
                 $actions['download'] = sprintf(
                     '<a href="%1$s">%2$s</a>',
-                    wp_nonce_url($item['downloadurl'], 'backwpup_action_nonce'),
-                    __('Download', 'backwpup')
+                    esc_url(wp_nonce_url($item['downloadurl'], 'backwpup_action_nonce')),
+                    esc_html__('Download', 'backwpup')
                 );
             }
         }
@@ -321,8 +325,8 @@ final class BackWPup_Page_Backups extends WP_List_Table
             );
             $actions['restore'] = sprintf(
                 '<a href="%1$s">%2$s</a>',
-                wp_nonce_url($item['restoreurl'], 'restore-backup_' . $this->jobid),
-                __('Restore', 'backwpup')
+                esc_url(wp_nonce_url($item['restoreurl'], 'restore-backup_' . $this->jobid)),
+                esc_html__('Restore', 'backwpup')
             );
         }
 
@@ -333,24 +337,24 @@ final class BackWPup_Page_Backups extends WP_List_Table
 
     public function column_folder($item)
     {
-        return esc_attr($item['folder']);
+        return esc_html($item['folder']);
     }
 
     public function column_size($item)
     {
-        if (!empty($item['filesize']) && $item['filesize'] != -1) {
-            return size_format($item['filesize'], 2);
+        if (!empty($item['filesize']) && (int) $item['filesize'] !== -1) {
+            return esc_html(size_format($item['filesize'], 2));
         }
 
-        return __('?', 'backwpup');
+        return esc_html__('?', 'backwpup');
     }
 
     public function column_time($item)
     {
         return sprintf(
-            __('%1$s at %2$s', 'backwpup'),
-            date_i18n(get_option('date_format'), $item['time'], true),
-            date_i18n(get_option('time_format'), $item['time'], true)
+            esc_html__('%1$s at %2$s', 'backwpup'),
+            esc_html(date_i18n(get_option('date_format'), (int) $item['time'], true)),
+            esc_html(date_i18n(get_option('time_format'), (int) $item['time'], true))
         );
     }
 
@@ -365,15 +369,15 @@ final class BackWPup_Page_Backups extends WP_List_Table
             case 'delete': //Delete Backup archives
                 check_admin_referer('bulk-backups');
                 if (!current_user_can('backwpup_backups_delete')) {
-                    wp_die(__('Sorry, you don\'t have permissions to do that.', 'backwpup'));
+                    wp_die(esc_html__('Sorry, you don\'t have permissions to do that.', 'backwpup'));
                 }
 
                 $jobdest = '';
                 if (isset($_GET['jobdest'])) {
-                    $jobdest = sanitize_text_field($_GET['jobdest']);
+                    $jobdest = sanitize_text_field(wp_unslash((string) $_GET['jobdest']));
                 }
                 if (isset($_GET['jobdest-top'])) {
-                    $jobdest = sanitize_text_field($_GET['jobdest-top']);
+                    $jobdest = sanitize_text_field(wp_unslash((string) $_GET['jobdest-top']));
                 }
 
                 $_GET['jobdest-top'] = $jobdest;
@@ -383,14 +387,30 @@ final class BackWPup_Page_Backups extends WP_List_Table
                     return;
                 }
 
-                [$jobid, $dest] = explode('_', $jobdest);
+                if (strpos($jobdest, '_') === false) {
+                    return;
+                }
+
+                [$jobid, $dest] = explode('_', $jobdest, 2);
+                $dest = strtoupper(sanitize_key($dest));
+                $registered_destinations = BackWPup::get_registered_destinations();
+                if (empty($registered_destinations[$dest]['class'])) {
+                    return;
+                }
+
                 /** @var BackWPup_Destinations $dest_class */
                 $dest_class = BackWPup::get_destination($dest);
                 $files = $dest_class->file_get_list($jobdest);
 
-                foreach ($_GET['backupfiles'] as $backupfile) {
+                if (empty($_GET['backupfiles']) || !is_array($_GET['backupfiles'])) {
+                    break;
+                }
+
+                $request_backup_files = array_map('sanitize_text_field', wp_unslash($_GET['backupfiles']));
+
+                foreach ($request_backup_files as $backupfile) {
                     foreach ($files as $file) {
-                        if (is_array($file) && $file['file'] == $backupfile) {
+                        if (is_array($file) && (string) $file['file'] === $backupfile) {
                             $dest_class->file_delete($jobdest, $backupfile);
                         }
                     }
@@ -405,12 +425,22 @@ final class BackWPup_Page_Backups extends WP_List_Table
                 if (isset($_GET['jobid'])) {
                     $jobid = absint($_GET['jobid']);
                     if (!current_user_can('backwpup_backups_download')) {
-                        wp_die(__('Sorry, you don\'t have permissions to do that.', 'backwpup'));
+                        wp_die(esc_html__('Sorry, you don\'t have permissions to do that.', 'backwpup'));
                     }
                     check_admin_referer('backwpup_action_nonce');
 
-                    $filename = untrailingslashit(BackWPup::get_plugin_data('temp')) . '/' . basename($_GET['local_file'] ?? $_GET['file']);
-                    if (file_exists($filename)) {
+                    $source_file = '';
+                    if (!empty($_GET['local_file'])) {
+                        $source_file = sanitize_text_field(wp_unslash((string) $_GET['local_file']));
+                    } elseif (!empty($_GET['file'])) {
+                        $source_file = sanitize_text_field(wp_unslash((string) $_GET['file']));
+                    }
+                    if ($source_file === '') {
+                        break;
+                    }
+
+                    $filename = untrailingslashit(BackWPup::get_plugin_data('temp')) . '/' . basename($source_file);
+                    if (basename($source_file) !== '' && is_file($filename) && !is_link($filename)) {
                         $downloader = new BackWPup_Download_File(
                             $filename,
                             function (BackWPup_Download_File_Interface $obj) use ($filename) {
@@ -418,10 +448,10 @@ final class BackWPup_Page_Backups extends WP_List_Table
                                     ->headers()
                                 ;
 
-                                readfile($filename);
+                                readfile($filename); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_readfile
 
                                 // Delete the temporary file.
-                                unlink($filename);
+                                wp_delete_file($filename);
 
                                 exit();
                             },
@@ -432,17 +462,20 @@ final class BackWPup_Page_Backups extends WP_List_Table
                         // If the file doesn't exist, fallback to old way of downloading
                         // This is for destinations without a downloader class
                         $dest = strtoupper(str_replace('download', '', self::$listtable->current_action()));
-                        if (!empty($dest) && strstr(self::$listtable->current_action(), 'download')) {
+                        $registered_destinations = BackWPup::get_registered_destinations();
+                        if (!empty($dest) && strpos((string) self::$listtable->current_action(), 'download') !== false && !empty($registered_destinations[$dest]['class'])) {
                             /** @var BackWPup_Destinations $dest_class */
                             $dest_class = BackWPup::get_destination($dest);
 
                             try {
-                                $dest_class->file_download($jobid, trim(sanitize_text_field($_GET['file'])));
+                                if (!empty($_GET['file'])) {
+                                    $dest_class->file_download($jobid, trim(sanitize_text_field(wp_unslash((string) $_GET['file']))));
+                                }
                             } catch (BackWPup_Destination_Download_Exception $e) {
                                 header('HTTP/1.0 404 Not Found');
                                 wp_die(
-                                    esc_html__('Ops! Unfortunately the file doesn\'t exists. May be was deleted?'),
-                                    esc_html__('404 - File Not Found.'),
+                                    esc_html__('Ops! Unfortunately the file doesn\'t exists. May be was deleted?', 'backwpup'),
+                                    esc_html__('404 - File Not Found.', 'backwpup'),
                                     [
                                         'back_link' => esc_html__('&laquo; Go back', 'backwpup'),
                                     ]
@@ -455,16 +488,17 @@ final class BackWPup_Page_Backups extends WP_List_Table
         }
 
         //Save per page
-        if (isset($_POST['screen-options-apply'], $_POST['wp_screen_options']['option'], $_POST['wp_screen_options']['value']) && $_POST['wp_screen_options']['option'] == 'backwpupbackups_per_page') {
+        if (isset($_POST['screen-options-apply'], $_POST['wp_screen_options']['option'], $_POST['wp_screen_options']['value']) && $_POST['wp_screen_options']['option'] === 'backwpupbackups_per_page') {
             check_admin_referer('screen-options-nonce', 'screenoptionnonce');
 
-            if ($_POST['wp_screen_options']['value'] > 0 && $_POST['wp_screen_options']['value'] < 1000) {
+            $per_page_value = absint($_POST['wp_screen_options']['value']);
+            if ($per_page_value > 0 && $per_page_value < 1000) {
                 update_user_option(
                     $current_user->ID,
                     'backwpupbackups_per_page',
-                    (int) $_POST['wp_screen_options']['value']
+                    $per_page_value
                 );
-                wp_redirect(remove_query_arg(['pagenum', 'apage', 'paged'], wp_get_referer()));
+                wp_safe_redirect(remove_query_arg(['pagenum', 'apage', 'paged'], wp_get_referer()));
 
                 exit;
             }
@@ -616,9 +650,9 @@ final class BackWPup_Page_Backups extends WP_List_Table
     {
         $query = sprintf(
             '?page=backwpupbackups&action=delete&jobdest-top=%1$s&paged=%2$s&backupfiles[]=%3$s',
-            $this->jobid . '_' . $this->dest,
+            rawurlencode($this->jobid . '_' . $this->dest),
             $this->get_pagenum(),
-            esc_attr($item['file'])
+            rawurlencode((string) $item['file'])
         );
         $url = wp_nonce_url(network_admin_url('admin.php') . $query, 'bulk-backups');
         $js = sprintf(
@@ -633,9 +667,9 @@ final class BackWPup_Page_Backups extends WP_List_Table
 
         return sprintf(
             '<a class="submitdelete" href="%1$s" onclick="%2$s">%3$s</a>',
-            $url,
+            esc_url($url),
             $js,
-            __('Delete', 'backwpup')
+            esc_html__('Delete', 'backwpup')
         );
     }
 
@@ -657,9 +691,9 @@ final class BackWPup_Page_Backups extends WP_List_Table
             esc_attr($this->dest),
             esc_attr($item['file']),
             esc_attr($local_file),
-            wp_create_nonce('backwpup_action_nonce'),
-            wp_nonce_url($item['downloadurl'], 'backwpup_action_nonce'),
-            __('Download', 'backwpup')
+            esc_attr(wp_create_nonce('backwpup_action_nonce')),
+            esc_url(wp_nonce_url($item['downloadurl'], 'backwpup_action_nonce')),
+            esc_html__('Download', 'backwpup')
         );
     }
 }
