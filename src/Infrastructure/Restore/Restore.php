@@ -18,6 +18,10 @@ use Inpsyde\Restore\Api\Module\Session\Session;
 use Inpsyde\Restore\LocalizeScripts;
 use Pimple\Exception\FrozenServiceException;
 
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
+}
+
 /**
  * Class Restore.
  *
@@ -49,6 +53,8 @@ final class Restore
         add_action('admin_head', [$this, 'localize_scripts']);
         add_action('backwpup_page_restore', [$this, 'boot']);
         add_action('backwpup_page_restore', [$this, 'handle_restore_log_download_request']);
+
+        (new StaleRestoreFilesNotice())->set_hooks();
 
         return $this;
     }
@@ -104,7 +110,7 @@ final class Restore
      */
     public function ajax_handler(): void
     {
-        if (\defined('DOING_AJAX') && DOING_AJAX && \defined('WP_ADMIN') && WP_ADMIN) {
+        if ( wp_doing_ajax() && is_admin() ) {
             restore_boot();
             /** @var AjaxHandler $ajaxHandler */
             $ajaxHandler = restore_container('ajax_handler');

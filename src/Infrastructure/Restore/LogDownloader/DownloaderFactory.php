@@ -79,7 +79,7 @@ final class DownloaderFactory
 
         /** @var string $dir */
         $dir = $this->container['project_temp'] ?? '';
-        if (!$dir || !is_readable($dir) || !is_writable($dir)) {
+        if (!$dir || !is_readable($dir) || !is_writable($dir)) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_is_writable
             throw new \RuntimeException(
                 'Project temporary directory doesn\'t exist or is not readable/writable'
             );
@@ -122,7 +122,7 @@ final class DownloaderFactory
     private function ensurePclZip(): void
     {
         if (!class_exists(\PclZip::class)) {
-            require_once ABSPATH . '/wp-admin/includes/class-pclzip.php';
+            require_once ABSPATH . '/wp-admin/includes/class-pclzip.php'; // @phpstan-ignore-line
         }
     }
 }

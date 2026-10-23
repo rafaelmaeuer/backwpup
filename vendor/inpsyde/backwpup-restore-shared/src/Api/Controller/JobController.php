@@ -193,6 +193,9 @@ class JobController
         // Set service and job_id in registry for future use
         $this->registry->service_name = $service_name;
         $this->registry->job_id = $job_id;
+        //rest if uploaded again
+        $this->registry->uploaded_file = $local_file_path;
+        $this->registry->decompression_state = [];
 
         $factory = new BackWPup_Destination_Downloader_Factory();
         $downloader = $factory->create(
@@ -329,13 +332,19 @@ class JobController
      */
     public function restore_db_action(): string
     {
-        if (!file_exists($this->registry->dbdumpfile)) {
+        $dbdumpfile = $this->registry->dbdumpfile;
+        if (!is_string($dbdumpfile) || $dbdumpfile === '' || !file_exists($dbdumpfile)) {
             $this->logger->warning('No database dump file found.');
             return __('No database dump file found.', 'backwpup');
         }
 
         // Restore the db.
         $this->database_importer->import();
+
+        //flush WP cache after db restore
+        if (function_exists('wp_cache_flush')) {
+            wp_cache_flush();
+        }
 
         // Refresh file list
         if ($this->registry->service_name && $this->registry->job_id) {
@@ -421,7 +430,14 @@ class JobController
 
         $user = wp_get_current_user();
 
-        wp_set_auth_cookie($user->ID, true);
+        // Headers may already be sent when the restore process streamed progress output.
+        // wp_set_auth_cookie() would emit E_WARNING in that case, which the ErrorHandler
+        // converts into a registry reset — aborting the cleanup. Skip cookie only; the
+        // wp_login action must still fire so downstream hooks (e.g. the confirmation flow)
+        // run correctly. The user will get a fresh cookie on the next page load.
+        if (!headers_sent()) {
+            wp_set_auth_cookie($user->ID, true);
+        }
 
         /*
          * Wp Login

@@ -1,4 +1,7 @@
 <?php
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
 
 // Before Restore Upload Content.
 do_action( 'backwpup_restore_before_upload_content' );

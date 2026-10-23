@@ -6,6 +6,10 @@
 use function Inpsyde\BackWPup\Infrastructure\Restore\restore_container;
 use Inpsyde\BackWPup\Infrastructure\Restore\TemplateLoader;
 
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
 /**
  * Class for BackWPup restore page.
  */
@@ -168,7 +172,7 @@ class BackWPup_Page_Restore {
 			true
 		);
 
-		wp_enqueue_script( 'backwpupgeneral', [], '', true );
+		wp_enqueue_script( 'backwpupgeneral' );
 		wp_enqueue_script(
 			'restore_restore',
 			"{$path_js}/restore{$suffix}.js",
