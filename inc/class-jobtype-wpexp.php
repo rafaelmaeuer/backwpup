@@ -88,10 +88,17 @@ class BackWPup_JobType_WPEXP extends BackWPup_JobTypes
      */
     public function edit_form_post_save($id)
     {
-        BackWPup_Option::update($id, 'wpexportcontent', sanitize_text_field($_POST['wpexportcontent']));
-        BackWPup_Option::update($id, 'wpexportfile', BackWPup_Job::sanitize_file_name($_POST['wpexportfile']));
-        if ($_POST['wpexportfilecompression'] === '' || $_POST['wpexportfilecompression'] === '.gz' || $_POST['wpexportfilecompression'] === '.bz2') {
-            BackWPup_Option::update($id, 'wpexportfilecompression', $_POST['wpexportfilecompression']);
+        // phpcs:disable WordPress.Security.NonceVerification.Missing -- Nonce is checked in BackWPup_Admin::save_post_form().
+        if (isset($_POST['wpexportcontent']) && is_string($_POST['wpexportcontent'])) {
+            BackWPup_Option::update($id, 'wpexportcontent', sanitize_text_field(wp_unslash($_POST['wpexportcontent'])));
+        }
+        if (isset($_POST['wpexportfile']) && is_string($_POST['wpexportfile'])) {
+            BackWPup_Option::update($id, 'wpexportfile', BackWPup_Job::sanitize_file_name(wp_unslash($_POST['wpexportfile'])));
+        }
+        $compression = isset($_POST['wpexportfilecompression']) && is_string($_POST['wpexportfilecompression']) ? $_POST['wpexportfilecompression'] : '';
+        // phpcs:enable WordPress.Security.NonceVerification.Missing
+        if ($compression === '' || $compression === '.gz' || $compression === '.bz2') {
+            BackWPup_Option::update($id, 'wpexportfilecompression', $compression);
         }
     }
 
@@ -191,20 +198,13 @@ class BackWPup_JobType_WPEXP extends BackWPup_JobTypes
 
         if ($job_object->steps_data[$job_object->step_working]['substep'] == 'cats') {
             if ('all' == $job_object->job['wpexportcontent']) {
-                $cats = [];
-                $categories = (array) get_categories(['get' => 'all']);
+                $categories = get_categories(['get' => 'all']);
                 // put categories in order with no child going before its parent
-                while ($cat = array_shift($categories)) {
-                    if ($cat->parent == 0 || isset($cats[$cat->parent])) {
-                        $cats[$cat->term_id] = $cat;
-                    } else {
-                        $categories[] = $cat;
-                    }
-                }
+                $cats = $this->order_terms_by_parent(is_array($categories) ? $categories : []);
                 $cats_xml = '';
 
                 foreach ($cats as $c) {
-                    $parent_slug = $c->parent ? $cats[$c->parent]->slug : '';
+                    $parent_slug = ($c->parent && isset($cats[$c->parent])) ? $cats[$c->parent]->slug : '';
                     $cats_xml .= "\t<wp:category><wp:term_id>" . $c->term_id . '</wp:term_id><wp:category_nicename>' . $c->slug . '</wp:category_nicename><wp:category_parent>' . $parent_slug . '</wp:category_parent>' . $this->wxr_cat_name($c) . $this->wxr_category_description($c) . "</wp:category>\n";
                 }
                 $written = file_put_contents($job_object->steps_data[$job_object->step_working]['wpexportfile'], $cats_xml, FILE_APPEND);
@@ -223,7 +223,8 @@ class BackWPup_JobType_WPEXP extends BackWPup_JobTypes
 
         if ($job_object->steps_data[$job_object->step_working]['substep'] == 'tags') {
             if ('all' == $job_object->job['wpexportcontent']) {
-                $tags = (array) get_tags(['get' => 'all']);
+                $tags = get_tags(['get' => 'all']);
+                $tags = is_array($tags) ? $tags : [];
                 $tags_xml = '';
 
                 foreach ($tags as $t) {
@@ -245,22 +246,25 @@ class BackWPup_JobType_WPEXP extends BackWPup_JobTypes
 
         if ($job_object->steps_data[$job_object->step_working]['substep'] == 'terms') {
             if ('all' == $job_object->job['wpexportcontent']) {
-                $terms = [];
                 $custom_taxonomies = get_taxonomies(['_builtin' => false]);
-                $custom_terms = (array) get_terms($custom_taxonomies, ['get' => 'all']);
+                $custom_terms = [];
+                // An empty taxonomy list would make get_terms() return the terms of all taxonomies.
+                if (!empty($custom_taxonomies)) {
+                    $custom_terms = get_terms(
+                        [
+                            'taxonomy' => array_values($custom_taxonomies),
+                            'get' => 'all',
+                        ]
+                    );
+                    $custom_terms = is_array($custom_terms) ? $custom_terms : [];
+                }
 
                 // put terms in order with no child going before its parent
-                while ($t = array_shift($custom_terms)) {
-                    if ($t->parent == 0 || isset($terms[$t->parent])) {
-                        $terms[$t->term_id] = $t;
-                    } else {
-                        $custom_terms[] = $t;
-                    }
-                }
+                $terms = $this->order_terms_by_parent($custom_terms);
                 $terms_xml = '';
 
                 foreach ($terms as $t) {
-                    $parent_slug = $t->parent ? $terms[$t->parent]->slug : '';
+                    $parent_slug = ($t->parent && isset($terms[$t->parent])) ? $terms[$t->parent]->slug : '';
                     $terms_xml .= "\t<wp:term><wp:term_id>" . $t->term_id . '</wp:term_id><wp:term_taxonomy>' . $t->taxonomy . '</wp:term_taxonomy><wp:term_slug>' . $t->slug . '</wp:term_slug><wp:term_parent>' . $parent_slug . '</wp:term_parent>' . $this->wxr_term_name($t) . $this->wxr_term_description($t) . "</wp:term>\n";
                 }
                 $written = file_put_contents($job_object->steps_data[$job_object->step_working]['wpexportfile'], $terms_xml, FILE_APPEND);
@@ -303,8 +307,9 @@ class BackWPup_JobType_WPEXP extends BackWPup_JobTypes
 
                 // fetch 20 posts at a time rather than loading the entire table into memory
                 while ($next_posts = array_splice($job_object->steps_data[$job_object->step_working]['post_ids'], 0, 20)) {
-                    $where = 'WHERE ID IN (' . join(',', $next_posts) . ')';
-                    $posts = $wpdb->get_results("SELECT * FROM {$wpdb->posts} {$where}");
+                    $next_posts = array_map('intval', $next_posts);
+                    $where = 'WHERE ID IN (' . implode(',', $next_posts) . ')';
+                    $posts = (array) $wpdb->get_results("SELECT * FROM {$wpdb->posts} {$where}"); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- IDs are cast to int.
                     $wxr_post = '';
                     // Begin Loop
                     /** @var WP_Post $post */
@@ -312,14 +317,14 @@ class BackWPup_JobType_WPEXP extends BackWPup_JobTypes
                         $is_sticky = is_sticky($post->ID) ? 1 : 0;
 
                         $wxr_post .= "\t<item>\n";
-                        $wxr_post .= "\t\t<title>" . apply_filters('the_title_rss', $post->post_title) . "</title>\n";
-                        $wxr_post .= "\t\t<link>" . esc_url(apply_filters('the_permalink_rss', get_permalink($post))) . "</link>\n";
+                        $wxr_post .= "\t\t<title>" . (string) apply_filters('the_title_rss', $post->post_title) . "</title>\n";
+                        $wxr_post .= "\t\t<link>" . esc_url((string) apply_filters('the_permalink_rss', get_permalink($post))) . "</link>\n";
                         $wxr_post .= "\t\t<pubDate>" . mysql2date('D, d M Y H:i:s +0000', get_post_time('Y-m-d H:i:s', true, $post), false) . "</pubDate>\n";
                         $wxr_post .= "\t\t<dc:creator>" . $this->wxr_cdata(get_the_author_meta('login', $post->post_author)) . "</dc:creator>\n";
                         $wxr_post .= "\t\t<guid isPermaLink=\"false\">" . esc_url(get_the_guid($post->ID)) . "</guid>\n";
                         $wxr_post .= "\t\t<description></description>\n";
-                        $wxr_post .= "\t\t<content:encoded>" . $this->wxr_cdata(apply_filters('the_content_export', $post->post_content)) . "</content:encoded>\n";
-                        $wxr_post .= "\t\t<excerpt:encoded>" . $this->wxr_cdata(apply_filters('the_excerpt_export', $post->post_excerpt)) . "</excerpt:encoded>\n";
+                        $wxr_post .= "\t\t<content:encoded>" . $this->wxr_cdata((string) apply_filters('the_content_export', $post->post_content)) . "</content:encoded>\n";
+                        $wxr_post .= "\t\t<excerpt:encoded>" . $this->wxr_cdata((string) apply_filters('the_excerpt_export', $post->post_excerpt)) . "</excerpt:encoded>\n";
                         $wxr_post .= "\t\t<wp:post_id>" . $post->ID . "</wp:post_id>\n";
                         $wxr_post .= "\t\t<wp:post_date>" . $post->post_date . "</wp:post_date>\n";
                         $wxr_post .= "\t\t<wp:post_date_gmt>" . $post->post_date_gmt . "</wp:post_date_gmt>\n";
@@ -337,7 +342,7 @@ class BackWPup_JobType_WPEXP extends BackWPup_JobTypes
                         }
                         $wxr_post .= $this->wxr_post_taxonomy();
 
-                        $postmeta = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$wpdb->postmeta} WHERE post_id = %d", $post->ID));
+                        $postmeta = (array) $wpdb->get_results($wpdb->prepare("SELECT * FROM {$wpdb->postmeta} WHERE post_id = %d", $post->ID));
 
                         foreach ($postmeta as $meta) {
                             if (apply_filters('backwpup_wxr_export_skip_postmeta', false, $meta->meta_key, $meta)) {
@@ -346,14 +351,14 @@ class BackWPup_JobType_WPEXP extends BackWPup_JobTypes
                             $wxr_post .= "\t\t<wp:postmeta>\n\t\t\t<wp:meta_key>" . $meta->meta_key . "</wp:meta_key>\n\t\t\t<wp:meta_value>" . $this->wxr_cdata($meta->meta_value) . "</wp:meta_value>\n\t\t</wp:postmeta>\n";
                         }
 
-                        $comments = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$wpdb->comments} WHERE comment_post_ID = %d AND comment_approved <> 'spam'", $post->ID));
+                        $comments = (array) $wpdb->get_results($wpdb->prepare("SELECT * FROM {$wpdb->comments} WHERE comment_post_ID = %d AND comment_approved <> 'spam'", $post->ID));
 
                         foreach ($comments as $c) {
                             $wxr_post .= "\t\t<wp:comment>\n";
                             $wxr_post .= "\t\t\t<wp:comment_id>" . $c->comment_ID . "</wp:comment_id>\n";
                             $wxr_post .= "\t\t\t<wp:comment_author>" . $this->wxr_cdata($c->comment_author) . "</wp:comment_author>\n";
                             $wxr_post .= "\t\t\t<wp:comment_author_email>" . $c->comment_author_email . "</wp:comment_author_email>\n";
-                            $wxr_post .= "\t\t\t<wp:comment_author_url>" . esc_url_raw($c->comment_author_url) . "</wp:comment_author_url>\n";
+                            $wxr_post .= "\t\t\t<wp:comment_author_url>" . esc_url_raw((string) $c->comment_author_url) . "</wp:comment_author_url>\n";
                             $wxr_post .= "\t\t\t<wp:comment_author_IP>" . $c->comment_author_IP . "</wp:comment_author_IP>\n";
                             $wxr_post .= "\t\t\t<wp:comment_date>" . $c->comment_date . "</wp:comment_date>\n";
                             $wxr_post .= "\t\t\t<wp:comment_date_gmt>" . $c->comment_date_gmt . "</wp:comment_date_gmt>\n";
@@ -362,7 +367,7 @@ class BackWPup_JobType_WPEXP extends BackWPup_JobTypes
                             $wxr_post .= "\t\t\t<wp:comment_type>" . $c->comment_type . "</wp:comment_type>\n";
                             $wxr_post .= "\t\t\t<wp:comment_parent>" . $c->comment_parent . "</wp:comment_parent>\n";
                             $wxr_post .= "\t\t\t<wp:comment_user_id>" . $c->user_id . "</wp:comment_user_id>\n";
-                            $c_meta = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$wpdb->commentmeta} WHERE comment_id = %d", $c->comment_ID));
+                            $c_meta = (array) $wpdb->get_results($wpdb->prepare("SELECT * FROM {$wpdb->commentmeta} WHERE comment_id = %d", $c->comment_ID));
 
                             foreach ($c_meta as $meta) {
                                 $wxr_post .= "\t\t\t<wp:commentmeta>\n\t\t\t\t<wp:meta_key>" . $meta->meta_key . "</wp:meta_key>\n\t\t\t\t<wp:meta_value>" . $this->wxr_cdata($meta->meta_value) . "</wp:meta_value>\n\t\t\t</wp:commentmeta>\n";
@@ -486,12 +491,25 @@ class BackWPup_JobType_WPEXP extends BackWPup_JobTypes
      */
     private function wxr_cdata($str)
     {
-        if (!seems_utf8($str)) {
-            $str = utf8_encode($str);
+        // Values (e.g. meta values) can be null. Avoid TypeErrors/deprecations on PHP 8.1+.
+        $str = (string) $str;
+
+        // Use wp_is_valid_utf8() if available (WP 6.9+), otherwise fall back to seems_utf8().
+        if (function_exists('wp_is_valid_utf8')) {
+            $is_valid_utf8 = wp_is_valid_utf8($str);
+        } else {
+            $is_valid_utf8 = seems_utf8($str);
+        }
+
+        if (!$is_valid_utf8) {
+            // utf8_encode() is deprecated as of PHP 8.2.
+            $str = function_exists('mb_convert_encoding')
+                ? (string) mb_convert_encoding($str, 'UTF-8', 'ISO-8859-1')
+                : utf8_encode($str);
         }
 
         // not allowed UTF-8 chars in XML
-        $str = preg_replace('/[^\x{0009}\x{000a}\x{000d}\x{0020}-\x{D7FF}\x{E000}-\x{FFFD}]+/u', '', $str);
+        $str = (string) preg_replace('/[^\x{0009}\x{000a}\x{000d}\x{0020}-\x{D7FF}\x{E000}-\x{FFFD}]+/u', '', $str);
 
         // $str = ent2ncr(esc_html($str));
         return '<![CDATA[' . str_replace(']]>', ']]]]><![CDATA[>', $str) . ']]>';
@@ -691,11 +709,18 @@ class BackWPup_JobType_WPEXP extends BackWPup_JobTypes
     {
         $post = get_post();
 
+        if (!$post instanceof WP_Post) {
+            return '';
+        }
+
         $taxonomies = get_object_taxonomies($post->post_type);
         if (empty($taxonomies)) {
             return '';
         }
         $terms = wp_get_object_terms($post->ID, $taxonomies);
+        if (!is_array($terms)) {
+            return '';
+        }
 
         $wxr_post_tags = '';
 
@@ -704,6 +729,48 @@ class BackWPup_JobType_WPEXP extends BackWPup_JobTypes
         }
 
         return $wxr_post_tags;
+    }
+
+    /**
+     * Put terms in order with no child going before its parent.
+     *
+     * Terms whose parent is not part of the list (orphans) are treated as top level terms,
+     * otherwise the ordering loop would never end.
+     *
+     * @param array $terms List of term objects
+     *
+     * @return array Ordered terms keyed by term ID
+     */
+    private function order_terms_by_parent(array $terms)
+    {
+        $ordered = [];
+        $available = [];
+
+        foreach ($terms as $term) {
+            if (is_object($term) && isset($term->term_id)) {
+                $available[$term->term_id] = true;
+            }
+        }
+
+        $requeued = 0;
+
+        while ($terms) {
+            $term = array_shift($terms);
+            if (!is_object($term) || !isset($term->term_id)) {
+                continue;
+            }
+            $parent = (int) $term->parent;
+            // The requeue counter breaks parent cycles.
+            if ($parent === 0 || isset($ordered[$parent]) || !isset($available[$parent]) || $requeued > count($terms)) {
+                $ordered[$term->term_id] = $term;
+                $requeued = 0;
+            } else {
+                $terms[] = $term;
+                ++$requeued;
+            }
+        }
+
+        return $ordered;
     }
 
     public function wxr_filter_postmeta($return_me, $meta_key)
