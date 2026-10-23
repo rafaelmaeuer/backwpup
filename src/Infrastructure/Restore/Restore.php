@@ -54,6 +54,8 @@ final class Restore
         add_action('backwpup_page_restore', [$this, 'boot']);
         add_action('backwpup_page_restore', [$this, 'handle_restore_log_download_request']);
 
+        (new StaleRestoreFilesNotice())->set_hooks();
+
         return $this;
     }
 
