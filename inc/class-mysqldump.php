@@ -77,6 +77,9 @@ class BackWPup_MySQLDump
             throw new BackWPup_MySQLDump_Exception(__('No MySQLi extension found. Please install it.', 'backwpup'));
         }
 
+        // Compression will be automatically set by dumpfile.
+        unset($args['compression']);
+
         $resolver = new OptionsResolver();
         $this->configureOptions($resolver);
         $args = $resolver->resolve($args);
@@ -117,11 +120,13 @@ class BackWPup_MySQLDump
             throw new BackWPup_MySQLDump_Exception(__('Cannot open SQL backup file', 'backwpup'));
         }
 
+        $db_identifier = $this->escapeIdentifier($this->dbname);
+
         //get table info
-        $res = $this->mysqli->query('SHOW TABLE STATUS FROM `' . $this->dbname . '`');
+        $res = $this->mysqli->query('SHOW TABLE STATUS FROM ' . $db_identifier);
         ++$GLOBALS[\wpdb::class]->num_queries;
-        if ($this->mysqli->error) {
-            throw new BackWPup_MySQLDump_Exception(sprintf(__('Database error %1$s for query %2$s', 'backwpup'), $this->mysqli->error, 'SHOW TABLE STATUS FROM `' . $this->dbname . '`'));
+        if ($this->mysqli->error || !$res instanceof \mysqli_result) {
+            throw new BackWPup_MySQLDump_Exception(sprintf(__('Database error %1$s for query %2$s', 'backwpup'), esc_html($this->mysqli->error), esc_html('SHOW TABLE STATUS FROM ' . $db_identifier)));
         }
 
         while ($tablestatus = $res->fetch_assoc()) {
@@ -130,13 +135,29 @@ class BackWPup_MySQLDump
         $res->close();
 
         //get table names and types from Database
-        $res = $this->mysqli->query('SHOW FULL TABLES FROM `' . $this->dbname . '`');
+        $res = $this->mysqli->query('SHOW FULL TABLES FROM ' . $db_identifier);
         ++$GLOBALS[\wpdb::class]->num_queries;
-        if ($this->mysqli->error) {
-            throw new BackWPup_MySQLDump_Exception(sprintf(__('Database error %1$s for query %2$s', 'backwpup'), $this->mysqli->error, 'SHOW FULL TABLES FROM `' . $this->dbname . '`'));
+        if ($this->mysqli->error || !$res instanceof \mysqli_result) {
+            throw new BackWPup_MySQLDump_Exception(sprintf(__('Database error %1$s for query %2$s', 'backwpup'), esc_html($this->mysqli->error), esc_html('SHOW FULL TABLES FROM ' . $db_identifier)));
         }
 
         while ($table = $res->fetch_array(MYSQLI_NUM)) {
+            // Skip tables whose names cannot be safely used as SQL identifiers.
+            if ($this->isInvalidIdentifier($table[0])) {
+                trigger_error(
+                    sprintf(
+                        /* translators: %s: table name. */
+                        __('Table "%s" has an invalid name and will not be backed up.', 'backwpup'),
+                        esc_html((string) $table[0])
+                    ),
+                    E_USER_WARNING
+                );
+
+                continue;
+            }
+            if (!isset($this->table_status[$table[0]])) {
+                $this->table_status[$table[0]] = ['Name' => $table[0], 'Engine' => '', 'Rows' => 0];
+            }
             $this->table_types[$table[0]] = $table[1];
             $this->tables_to_dump[] = $table[0];
             if ($table[1] === 'VIEW') {
@@ -164,7 +185,7 @@ class BackWPup_MySQLDump
             'dumpfile' => null,
             'dbclientflags' => defined('MYSQL_CLIENT_FLAGS') ? MYSQL_CLIENT_FLAGS : 0,
             'compression' => function (Options $options) {
-                if ($options['dumpfile'] !== null
+                if (!empty($options['dumpfile'])
                     && substr(strtolower((string) $options['dumpfile']), -3) === '.gz') {
                     return self::COMPRESS_GZ;
                 }
@@ -215,6 +236,7 @@ class BackWPup_MySQLDump
         $resolver->setAllowedTypes('dumpfilehandle', 'resource');
         $resolver->setAllowedTypes('dumpfile', ['null', 'string']);
         $resolver->setAllowedTypes('dbclientflags', 'int');
+        $resolver->setAllowedTypes('compression', ['string']);
     }
 
     /**
@@ -304,7 +326,7 @@ class BackWPup_MySQLDump
                 sprintf(
                     __('Cannot connect to MySQL database (%1$d: %2$s)', 'backwpup'),
                     $e->getCode(),
-                    $e->getMessage()
+                    esc_html($e->getMessage())
                 )
             );
         }
@@ -338,8 +360,8 @@ class BackWPup_MySQLDump
         trigger_error(
             sprintf(
                 __('Database error: %1$s. Query: %2$s', 'backwpup'),
-                $exception->getMessage(),
-                $query
+                esc_html($exception->getMessage()),
+                esc_html($query)
             ),
             E_USER_WARNING
         );
@@ -366,8 +388,10 @@ class BackWPup_MySQLDump
      */
     public function execute()
     {
-        //increase time limit
-        @set_time_limit(300);
+        //increase time limit (set_time_limit() may be disabled, which is fatal on PHP 8+)
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(300);
+        }
         //write dump head
         $this->dump_head();
         //write tables
@@ -390,8 +414,11 @@ class BackWPup_MySQLDump
         // get sql timezone
         $res = $this->mysqli->query('SELECT @@time_zone');
         ++$GLOBALS[\wpdb::class]->num_queries;
+        if ($this->mysqli->error || !$res instanceof \mysqli_result) {
+            throw new BackWPup_MySQLDump_Exception(sprintf(__('Database error %1$s for query %2$s', 'backwpup'), esc_html($this->mysqli->error), 'SELECT @@time_zone'));
+        }
         $mysqltimezone = $res->fetch_row();
-        $mysqltimezone = $mysqltimezone[0];
+        $mysqltimezone = isset($mysqltimezone[0]) ? (string) $mysqltimezone[0] : 'SYSTEM';
         $res->close();
 
         //For SQL always use \n as MySQL wants this on all platforms.
@@ -440,18 +467,20 @@ class BackWPup_MySQLDump
         $mode = $driver->report_mode;
         $driver->report_mode = MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT;
 
-        // Dump Functions
-        $this->dump_functions();
+        try {
+            // Dump Functions
+            $this->dump_functions();
 
-        // Dump Procedures
-        $this->dump_procedures();
+            // Dump Procedures
+            $this->dump_procedures();
 
-        // Dump Triggers
-        $this->dump_triggers();
-
-        // Restore report mode for other methods that do not support exceptions yet
-        // This should be changed ASAP to support SQL exceptions globally
-        $driver->report_mode = $mode;
+            // Dump Triggers
+            $this->dump_triggers();
+        } finally {
+            // Restore report mode for other methods that do not support exceptions yet
+            // This should be changed ASAP to support SQL exceptions globally
+            $driver->report_mode = $mode;
+        }
 
         //for better import with mysql client
         $dbdumpfooter = "\n/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;\n";
@@ -477,19 +506,23 @@ class BackWPup_MySQLDump
      */
     public function dump_table_head($table)
     {
+        $this->assertTableName($table);
+
         //dump View
         if ($this->table_types[$table] === 'VIEW') {
             //Dump the view table structure
             $fields = [];
-            $res = $this->mysqli->query('SELECT * FROM `' . $table . '` LIMIT 1');
+            $query = 'SELECT * FROM ' . $this->escapeIdentifier($table) . ' LIMIT 1';
+            $res = $this->mysqli->query($query);
             ++$GLOBALS[\wpdb::class]->num_queries;
-            if ($this->mysqli->error) {
-                trigger_error(sprintf(__('Database error %1$s for query %2$s', 'backwpup'), $this->mysqli->error, 'SELECT * FROM `' . $table . '` LIMIT 1'), E_USER_WARNING);
+            if ($this->mysqli->error || !$res instanceof \mysqli_result) {
+                trigger_error(sprintf(__('Database error %1$s for query %2$s', 'backwpup'), esc_html($this->mysqli->error), esc_html($query)), E_USER_WARNING);
             } else {
-                $fields = $res->fetch_fields();
+                $fields = $res->fetch_fields() ?: [];
                 $res->close();
             }
-            if ($res) {
+            // Only write the temporary table if we got the fields, otherwise the SQL would be invalid.
+            if (!empty($fields)) {
                 $tablecreate = "\n--\n-- Temporary table structure for view `" . $table . "`\n--\n\n";
                 $tablecreate .= 'DROP TABLE IF EXISTS `' . $table . "`;\n";
                 $tablecreate .= '/*!50001 DROP VIEW IF EXISTS `' . $table . "`*/;\n";
@@ -515,13 +548,20 @@ class BackWPup_MySQLDump
         $tablecreate .= "/*!40101 SET @saved_cs_client     = @@character_set_client */;\n";
         $tablecreate .= "/*!40101 SET character_set_client = '" . $this->mysqli->character_set_name() . "' */;\n";
         //Dump the table structure
-        $res = $this->mysqli->query('SHOW CREATE TABLE `' . $table . '`');
+        $query = 'SHOW CREATE TABLE ' . $this->escapeIdentifier($table);
+        $res = $this->mysqli->query($query);
         ++$GLOBALS[\wpdb::class]->num_queries;
-        if ($this->mysqli->error) {
-            trigger_error(sprintf(__('Database error %1$s for query %2$s', 'backwpup'), $this->mysqli->error, 'SHOW CREATE TABLE `' . $table . '`'), E_USER_WARNING);
-		} else {
-			$createtable = str_replace( '"', '`', $res->fetch_assoc() );
-			$res->close();
+        if ($this->mysqli->error || !$res instanceof \mysqli_result) {
+            trigger_error(sprintf(__('Database error %1$s for query %2$s', 'backwpup'), esc_html($this->mysqli->error), esc_html($query)), E_USER_WARNING);
+        } else {
+            $createtable = $res->fetch_assoc();
+            $res->close();
+            if (!is_array($createtable) || !isset($createtable['Create Table'])) {
+                trigger_error(sprintf(__('Database error %1$s for query %2$s', 'backwpup'), esc_html__('No table structure returned', 'backwpup'), esc_html($query)), E_USER_WARNING);
+
+                return 0;
+            }
+            $createtable = str_replace('"', '`', $createtable);
             $tablecreate .= $createtable['Create Table'] . ";\n";
             $tablecreate .= "/*!40101 SET character_set_client = @saved_cs_client */;\n";
             $this->write($tablecreate);
@@ -550,14 +590,20 @@ class BackWPup_MySQLDump
      */
     public function dump_view_table_head($view): void
     {
+        $this->assertTableName($view);
+
         //Dump the view structure
-        $res = $this->mysqli->query('SHOW CREATE VIEW `' . $view . '`');
+        $query = 'SHOW CREATE VIEW ' . $this->escapeIdentifier($view);
+        $res = $this->mysqli->query($query);
         ++$GLOBALS[\wpdb::class]->num_queries;
-        if ($this->mysqli->error) {
-            trigger_error(sprintf(__('Database error %1$s for query %2$s', 'backwpup'), $this->mysqli->error, 'SHOW CREATE VIEW `' . $view . '`'), E_USER_WARNING);
+        if ($this->mysqli->error || !$res instanceof \mysqli_result) {
+            trigger_error(sprintf(__('Database error %1$s for query %2$s', 'backwpup'), esc_html($this->mysqli->error), esc_html($query)), E_USER_WARNING);
         } else {
             $createview = $res->fetch_assoc();
             $res->close();
+            if (!is_array($createview) || !isset($createview['Create View'])) {
+                return;
+            }
             $tablecreate = "\n--\n-- View structure for `" . $view . "`\n--\n\n";
             $tablecreate .= 'DROP TABLE IF EXISTS `' . $view . "`;\n";
             $tablecreate .= 'DROP VIEW IF EXISTS `' . $view . "`;\n";
@@ -578,7 +624,7 @@ class BackWPup_MySQLDump
      */
     public function dump_table_footer($table): void
     {
-        if ($this->table_status[$table]['Rows'] !== 0) {
+        if (isset($this->table_status[$table]['Rows']) && $this->table_status[$table]['Rows'] !== 0) {
             $this->write('/*!40000 ALTER TABLE `' . $table . "` ENABLE KEYS */;\nUNLOCK TABLES;\n");
         }
     }
@@ -596,12 +642,14 @@ class BackWPup_MySQLDump
      */
     public function dump_table($table, $start = 0, $length = 0)
     {
+        $this->assertTableName($table);
+
         if (!is_numeric($start) || $start < 0) {
-            throw new BackWPup_MySQLDump_Exception(sprintf(__('Start for table backup is not correctly set: %1$s', 'backwpup'), $start));
+            throw new BackWPup_MySQLDump_Exception(sprintf(__('Start for table backup is not correctly set: %1$s', 'backwpup'), esc_html((string) $start)));
         }
 
         if (!is_numeric($length) || $length < 0) {
-            throw new BackWPup_MySQLDump_Exception(sprintf(__('Length for table backup is not correctly set: %1$s', 'backwpup'), $length));
+            throw new BackWPup_MySQLDump_Exception(sprintf(__('Length for table backup is not correctly set: %1$s', 'backwpup'), esc_html((string) $length)));
         }
 
         $done_records = 0;
@@ -614,60 +662,78 @@ class BackWPup_MySQLDump
         try {
             $res = $this->do_table_query($table, $start, $length);
         } catch (BackWPup_MySQLDump_Exception $e) {
-            trigger_error(sprintf(__('Database error %1$s for query %2$s', 'backwpup'), $e->getMessage(), 'SELECT * FROM `' . $table . '`'), E_USER_WARNING);
+            trigger_error(sprintf(__('Database error %1$s for query %2$s', 'backwpup'), esc_html($e->getMessage()), esc_html('SELECT * FROM `' . $table . '`')), E_USER_WARNING);
 
             return 0;
         }
 
-        $fieldsarray = [];
-        $fieldinfo = [];
-        $fields = $res->fetch_fields();
-        $i = 0;
+        // Always free the unbuffered result, otherwise following queries on this connection fail.
+        try {
+            $fieldsarray = [];
+            $fieldinfo = [];
+            $fields = $res->fetch_fields() ?: [];
+            $i = 0;
 
-        foreach ($fields as $field) {
-            $fieldsarray[$i] = $field->orgname;
-            $fieldinfo[$fieldsarray[$i]] = $field;
-            ++$i;
-        }
-        $dump = '';
+            foreach ($fields as $field) {
+                $fieldsarray[$i] = $field->orgname;
+                $fieldinfo[$fieldsarray[$i]] = $field;
+                ++$i;
+            }
+            $dump = '';
 
-        while ($data = $res->fetch_assoc()) {
-            $values = [];
+            while ($data = $res->fetch_assoc()) {
+                $values = [];
 
-            foreach ($data as $key => $value) {
-                if ($value === null) { // Make Value NULL to string NULL
-                    $value = 'NULL';
-                } elseif (in_array((int) $fieldinfo[$key]->type, [MYSQLI_TYPE_DECIMAL, MYSQLI_TYPE_NEWDECIMAL, MYSQLI_TYPE_BIT, MYSQLI_TYPE_TINY, MYSQLI_TYPE_SHORT, MYSQLI_TYPE_LONG, MYSQLI_TYPE_FLOAT, MYSQLI_TYPE_DOUBLE, MYSQLI_TYPE_LONGLONG, MYSQLI_TYPE_INT24, MYSQLI_TYPE_YEAR], true)) {//is value numeric no esc
-                    $value = empty($value) ? 0 : $value;
-                } elseif (in_array((int) $fieldinfo[$key]->type, [MYSQLI_TYPE_TIMESTAMP, MYSQLI_TYPE_DATE, MYSQLI_TYPE_TIME, MYSQLI_TYPE_DATETIME, MYSQLI_TYPE_NEWDATE], true)) {//date/time types
-                    $value = "'{$value}'";
-                } elseif ($fieldinfo[$key]->flags & MYSQLI_BINARY_FLAG) {//is value binary
-                    $hex = unpack('H*', $value);
-                    $value = empty($value) ? "''" : "0x{$hex[1]}";
-                } else {
-                    $value = "'" . $this->escapeString($value) . "'";
+                foreach ($data as $key => $value) {
+                    if ($value === null) { // Make Value NULL to string NULL
+                        $value = 'NULL';
+                    } elseif (in_array((int) $fieldinfo[$key]->type, [MYSQLI_TYPE_DECIMAL, MYSQLI_TYPE_NEWDECIMAL, MYSQLI_TYPE_BIT, MYSQLI_TYPE_TINY, MYSQLI_TYPE_SHORT, MYSQLI_TYPE_LONG, MYSQLI_TYPE_FLOAT, MYSQLI_TYPE_DOUBLE, MYSQLI_TYPE_LONGLONG, MYSQLI_TYPE_INT24, MYSQLI_TYPE_YEAR], true)) {//is value numeric no esc
+                        $value = empty($value) ? 0 : $value;
+                    } elseif (in_array((int) $fieldinfo[$key]->type, [MYSQLI_TYPE_TIMESTAMP, MYSQLI_TYPE_DATE, MYSQLI_TYPE_TIME, MYSQLI_TYPE_DATETIME, MYSQLI_TYPE_NEWDATE], true)) {//date/time types
+                        $value = "'{$value}'";
+                    } elseif ($fieldinfo[$key]->flags & MYSQLI_BINARY_FLAG) {//is value binary
+                        $hex = unpack('H*', $value);
+                        $value = empty($value) ? "''" : "0x{$hex[1]}";
+                    } else {
+                        $value = "'" . $this->escapeString($value) . "'";
+                    }
+                    $values[] = $value;
                 }
-                $values[] = $value;
+                //new query in dump on more than 50000 chars.
+                if (empty($dump)) {
+                    $dump = 'INSERT INTO `' . $table . '` (`' . implode('`, `', $fieldsarray) . "`) VALUES \n";
+                }
+                if (strlen($dump) <= 50000) {
+                    $dump .= '(' . implode(', ', $values) . "),\n";
+                } else {
+                    $dump .= '(' . implode(', ', $values) . ");\n";
+                    $this->write($dump);
+                    $dump = '';
+                }
+                ++$done_records;
             }
-            //new query in dump on more than 50000 chars.
-            if (empty($dump)) {
-                $dump = 'INSERT INTO `' . $table . '` (`' . implode('`, `', $fieldsarray) . "`) VALUES \n";
+
+            // With unbuffered results a lost connection ends the loop like a normal end of data.
+            // Do not silently produce an incomplete table dump.
+            if ($data === false || $this->mysqli->errno) {
+                throw new BackWPup_MySQLDump_Exception(
+                    sprintf(
+                        /* translators: 1: table name, 2: database error message. */
+                        __('Database connection lost while reading data of table %1$s: %2$s', 'backwpup'),
+                        esc_html($table),
+                        esc_html($this->mysqli->error)
+                    )
+                );
             }
-            if (strlen($dump) <= 50000) {
-                $dump .= '(' . implode(', ', $values) . "),\n";
-            } else {
-                $dump .= '(' . implode(', ', $values) . ");\n";
-                $this->write($dump);
-                $dump = '';
-            }
-            ++$done_records;
+        } finally {
+            $res->close();
         }
+
         if (!empty($dump)) {
             // Remove trailing , and newline.
             $dump = substr($dump, 0, -2) . ";\n";
             $this->write($dump);
         }
-        $res->close();
 
         return $done_records;
     }
@@ -689,6 +755,12 @@ class BackWPup_MySQLDump
 
         while ($function = $statusResult->fetch_assoc()) {
             if ($this->getDbName() !== $function['Db']) {
+                continue;
+            }
+
+            if ($this->isInvalidIdentifier($function['Db']) || $this->isInvalidIdentifier($function['Name'])) {
+                $this->logInvalidIdentifier((string) $function['Name']);
+
                 continue;
             }
 
@@ -762,6 +834,12 @@ class BackWPup_MySQLDump
                 continue;
             }
 
+            if ($this->isInvalidIdentifier($procedure['Db']) || $this->isInvalidIdentifier($procedure['Name'])) {
+                $this->logInvalidIdentifier((string) $procedure['Name']);
+
+                continue;
+            }
+
             $query = sprintf(
                 'SHOW CREATE PROCEDURE `%1$s`.`%2$s`',
                 $procedure['Db'],
@@ -819,6 +897,12 @@ class BackWPup_MySQLDump
      */
     protected function dump_triggers()
     {
+        if ($this->isInvalidIdentifier($this->getDbName())) {
+            $this->logInvalidIdentifier($this->getDbName());
+
+            return;
+        }
+
         $query = sprintf('SHOW TRIGGERS FROM `%1$s`', $this->getDbName());
 
         try {
@@ -830,6 +914,12 @@ class BackWPup_MySQLDump
         }
 
         while ($trigger = $statusResult->fetch_assoc()) {
+            if ($this->isInvalidIdentifier($trigger['Trigger'])) {
+                $this->logInvalidIdentifier((string) $trigger['Trigger']);
+
+                continue;
+            }
+
             $query = sprintf(
                 'SHOW CREATE TRIGGER `%1$s`.`%2$s`',
                 $this->getDbName(),
@@ -940,17 +1030,101 @@ class BackWPup_MySQLDump
      */
     protected function do_table_query($table, $start, $length)
     {
-        if ($length == 0 && $start == 0) {
-            $res = $this->mysqli->query('SELECT * FROM `' . $table . '` ', MYSQLI_USE_RESULT);
+        $this->assertTableName($table);
+        $start = (int) $start;
+        $length = (int) $length;
+
+        if ($length === 0 && $start === 0) {
+            $res = $this->mysqli->query('SELECT * FROM ' . $this->escapeIdentifier($table), MYSQLI_USE_RESULT);
         } else {
-            $res = $this->mysqli->query('SELECT * FROM `' . $table . '` LIMIT ' . $start . ', ' . $length, MYSQLI_USE_RESULT);
+            $res = $this->mysqli->query('SELECT * FROM ' . $this->escapeIdentifier($table) . ' LIMIT ' . $start . ', ' . $length, MYSQLI_USE_RESULT);
         }
         ++$GLOBALS[\wpdb::class]->num_queries;
-        if ($this->mysqli->error) {
+        if ($this->mysqli->error || !$res instanceof \mysqli_result) {
             throw new BackWPup_MySQLDump_Exception($this->mysqli->error);
         }
 
         return $res;
+    }
+
+    /**
+     * Ensure table name exists in the list of tables read from the database and is safe to use.
+     *
+     * @param string $table Table name to validate
+     *
+     * @throws BackWPup_MySQLDump_Exception When the table name is invalid
+     */
+    protected function assertTableName($table): void
+    {
+        if (!is_string($table) || !isset($this->table_types[$table]) || $this->isInvalidIdentifier($table)) {
+            throw new BackWPup_MySQLDump_Exception(
+                sprintf(
+                    /* translators: %s: table name. */
+                    __('Invalid table name "%s".', 'backwpup'),
+                    esc_html((string) $table)
+                )
+            );
+        }
+    }
+
+    /**
+     * Quote an identifier for SQL usage.
+     *
+     * @param string $identifier Identifier to quote
+     *
+     * @throws BackWPup_MySQLDump_Exception When the identifier is invalid
+     *
+     * @return string Quoted identifier
+     */
+    protected function escapeIdentifier($identifier)
+    {
+        if ($this->isInvalidIdentifier($identifier)) {
+            throw new BackWPup_MySQLDump_Exception(
+                sprintf(
+                    /* translators: %s: database identifier. */
+                    __('Invalid database identifier "%s".', 'backwpup'),
+                    esc_html((string) $identifier)
+                )
+            );
+        }
+
+        return '`' . $identifier . '`';
+    }
+
+    /**
+     * Check whether an identifier contains characters that are unsafe inside backticks.
+     *
+     * @param mixed $identifier Identifier to check
+     *
+     * @return bool True when invalid
+     */
+    private function isInvalidIdentifier($identifier): bool
+    {
+        if (!is_scalar($identifier)) {
+            return true;
+        }
+
+        $identifier = (string) $identifier;
+
+        return $identifier === '' || preg_match('/[`\x00]/', $identifier) === 1;
+    }
+
+    /**
+     * Log a skipped invalid identifier.
+     *
+     * @param string $identifier The identifier
+     */
+    private function logInvalidIdentifier($identifier): void
+    {
+        // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_trigger_error
+        trigger_error(
+            sprintf(
+                /* translators: %s: database identifier. */
+                __('Invalid database identifier "%s".', 'backwpup'),
+                esc_html((string) $identifier)
+            ),
+            E_USER_WARNING
+        );
     }
 
     /**
