@@ -101,7 +101,14 @@ final class BackWPup_Option
             }
         }
 
-        return get_site_option('backwpup_jobs', []);
+        $jobs = get_site_option('backwpup_jobs', []);
+
+        // Corrupted option data must not cause fatal errors (e.g. string offsets on PHP 8).
+        if (!is_array($jobs)) {
+            return [];
+        }
+
+        return array_filter($jobs, 'is_array');
     }
 
     /**
@@ -260,7 +267,7 @@ final class BackWPup_Option
             );
         }
 
-        $options = wp_parse_args($jobs_options[$id], self::defaults_job());
+        $options = wp_parse_args($jobs_options[$id] ?? [], self::defaults_job());
 
         if (isset($options['archiveformat']) && $options['archiveformat'] === '.tar.bz2') {
             $options['archiveformat'] = '.tar.gz';
