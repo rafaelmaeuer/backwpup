@@ -229,6 +229,7 @@ Maintenance release of the 4.x line (classic UI) with engine and security fixes 
 * Removed : EasyCron integration (service discontinued)
 * Changed : Update bundled libraries (phpseclib 3.0.57, Archive_Tar 1.6.1, Guzzle 7.10, AWS SDK 3.337, Monolog 2.11)
 * Changed : Updates from wordpress.org are blocked (Update URI) so the 4.x line is not replaced by 5.x
+* Added : Plugin updates are delivered from GitHub releases (rafaelmaeuer/backwpup)
 
 = 4.1.8 =
 Release date: dec 18, 2024

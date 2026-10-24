@@ -1,0 +1,59 @@
+name: Release
+
+# Push a tag like v4.7.9 to publish a GitHub release with an installable backwpup.zip.
+# Sites running this plugin pick the release up through BackWPup_GitHub_Updater.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check tag matches plugin version
+        id: version
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          HEADER=$(sed -n 's/^ \* Version: *//p' backwpup.php | tr -d '[:space:]')
+          if [ "$HEADER" != "$VERSION" ]; then
+            echo "::error::Tag $TAG does not match plugin header version $HEADER"
+            exit 1
+          fi
+          if ! grep -q "^Stable tag: $VERSION$" readme.txt; then
+            echo "::error::readme.txt Stable tag is not $VERSION"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Extract release notes from changelog.txt
+        run: |
+          awk -v v="= ${{ steps.version.outputs.version }} =" '
+            $0 == v { found = 1; next }
+            found && /^= .* =$/ { exit }
+            found { print }
+          ' changelog.txt > notes.md
+          if [ ! -s notes.md ]; then
+            echo "::error::No changelog.txt entry for ${{ steps.version.outputs.version }}"
+            exit 1
+          fi
+
+      - name: Build zip
+        run: git archive --format=zip --prefix=backwpup/ -o backwpup.zip "$GITHUB_REF_NAME"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" backwpup.zip \
+            --title "BackWPup ${{ steps.version.outputs.version }}" \
+            --notes-file notes.md \
+            --verify-tag

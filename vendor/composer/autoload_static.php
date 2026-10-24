@@ -644,6 +644,7 @@ class ComposerStaticInitbd9daef8d5e05de248b6db9492444827
         'BackWPup_Encryption_OpenSSL' => __DIR__ . '/../..' . '/inc/class-encryption-openssl.php',
         'BackWPup_Factory_Exception' => __DIR__ . '/../..' . '/inc/class-factory-exception.php',
         'BackWPup_File' => __DIR__ . '/../..' . '/inc/class-file.php',
+        'BackWPup_GitHub_Updater' => __DIR__ . '/../..' . '/inc/class-github-updater.php',
         'BackWPup_Help' => __DIR__ . '/../..' . '/inc/class-help.php',
         'BackWPup_Install' => __DIR__ . '/../..' . '/inc/class-install.php',
         'BackWPup_Job' => __DIR__ . '/../..' . '/inc/class-job.php',

@@ -89,6 +89,9 @@ if (!class_exists(\BackWPup::class, false)) {
 			// Register the third party services.
 			BackWPup_ThirdParties::register();
 
+            // Updates from GitHub releases (see "Update URI" header). Also needed in cron for background update checks.
+            (new BackWPup_GitHub_Updater(__FILE__))->init();
+
             // Load pro features
             if (self::$is_pro) {
                 $license = new License(

@@ -391,6 +391,7 @@ return array(
     'BackWPup_Encryption_OpenSSL' => $baseDir . '/inc/class-encryption-openssl.php',
     'BackWPup_Factory_Exception' => $baseDir . '/inc/class-factory-exception.php',
     'BackWPup_File' => $baseDir . '/inc/class-file.php',
+    'BackWPup_GitHub_Updater' => $baseDir . '/inc/class-github-updater.php',
     'BackWPup_Help' => $baseDir . '/inc/class-help.php',
     'BackWPup_Install' => $baseDir . '/inc/class-install.php',
     'BackWPup_Job' => $baseDir . '/inc/class-job.php',
