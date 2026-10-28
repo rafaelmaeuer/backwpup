@@ -155,6 +155,14 @@ class BackWPup_Destination_Folder extends BackWPup_Destinations
             'Web.config',
         ];
 
+        // The archive of a running job is still being written (or encrypted) in this folder,
+        // listing it would offer an incomplete file for download.
+        $running_file = '';
+        $working_job = BackWPup_Job::get_working_data();
+        if ($working_job && !empty($working_job->backup_file)) {
+            $running_file = basename((string) $working_job->backup_file);
+        }
+
         if (is_dir($backup_folder)) {
             $dir = $this->get_backwpup_directory($backup_folder);
 
@@ -165,6 +173,7 @@ class BackWPup_Destination_Folder extends BackWPup_Destinations
                     || $file->isLink()
                     || in_array($file->getFilename(), $not_allowed_files, true)
                     || !$this->is_backup_archive($file->getFilename())
+                    || ($running_file !== '' && $file->getFilename() === $running_file)
                 ) {
                     continue;
                 }

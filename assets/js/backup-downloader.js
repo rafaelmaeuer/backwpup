@@ -92,6 +92,9 @@ window.BWU = window.BWU || {};
 
         done: function ()
         {
+            // Close the stream first: otherwise EventSource reconnects once the server ends the
+            // response and restarts the copy, truncating the file while it's being downloaded.
+            this.closeEventSource();
             this.showSuccessMsg();
             window.location.href = this.currentTarget.dataset.url;
 

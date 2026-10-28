@@ -98,11 +98,12 @@ abstract class BackWPup_Destinations
                     // Setup Destination service and download file.
                     try {
                         $factory = new BackWPup_Destination_Downloader_Factory();
+                        // Copy into a temporary file, renamed to $filename only once complete.
                         $downloader = $factory->create(
                             $destination,
                             $jobid,
                             $file_path,
-                            $filename
+                            $filename . '.part'
                         );
                     } catch (\Exception $e) {
                         // Connection/setup errors happen in the destination downloader constructor.
@@ -118,7 +119,9 @@ abstract class BackWPup_Destinations
 
                         exit();
                     }
-                    $downloader->download_by_chunks();
+                    if (!$downloader->download_by_chunks($filename)) {
+                        wp_delete_file($filename . '.part');
+                    }
 
                     exit();
                 },

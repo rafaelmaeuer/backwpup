@@ -86,6 +86,8 @@ class BackWPup_Destination_Downloader
 
         // 2KB padding for IE
         echo ':' . str_repeat(' ', 2048) . "\n\n"; // phpcs:ignore
+        // Never let the browser reconnect automatically: a reconnect restarts the whole copy.
+        echo "retry: 86400000\n\n";
 
         // Ensure we're not buffered.
         wp_ob_end_flush_all();
@@ -101,9 +103,13 @@ class BackWPup_Destination_Downloader
     }
 
     /**
+     * @param string $final_file_path when given, the chunks are written to the data's local file path
+     *                                (a temporary file) which is renamed to this path once complete,
+     *                                so a partially copied file is never served
+     *
      * @return bool
      */
-    public function download_by_chunks()
+    public function download_by_chunks(string $final_file_path = '')
     {
         $this->ensure_user_can_download();
 
@@ -147,6 +153,22 @@ class BackWPup_Destination_Downloader
                 if ($start_byte < $size && $end_byte >= $size) {
                     $end_byte = $size - 1;
                 }
+            }
+
+            if ($final_file_path !== '' && $final_file_path !== $local_file_path) {
+                // Release the destination so its file handles are closed before renaming.
+                $this->destination = null;
+                clearstatcache(true, $local_file_path);
+                if ((int) filesize($local_file_path) !== $size) {
+                    throw new \RuntimeException(__('The downloaded file is incomplete. Please try again.', 'backwpup'));
+                }
+                if (file_exists($final_file_path)) {
+                    wp_delete_file($final_file_path);
+                }
+                if (!rename($local_file_path, $final_file_path)) {
+                    throw new \RuntimeException(__('Could not move the downloaded file into place.', 'backwpup'));
+                }
+                $local_file_path = $final_file_path;
             }
 
             if (BackWPup::is_pro()) {
