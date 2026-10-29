@@ -122,6 +122,11 @@ abstract class Notice
      */
     public function notice(): void
     {
+        // No notices on the restore page: following a notice link there leaves a running restore.
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        if (isset($_GET['page']) && $_GET['page'] === 'backwpuprestore') {
+            return;
+        }
         if (!$this->isScreenAllowed()) {
             return;
         }
