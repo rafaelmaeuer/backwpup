@@ -17,8 +17,22 @@ if ( ! $bind->errors ) { ?>
 				);
 				?>
 			</p>
+			<p>
+				<?php esc_html_e( 'You will be taken to the dashboard in a few seconds. If you are asked to log in, use the login of the restored site.', 'backwpup' ); ?>
+			</p>
+			<p>
+				<a id="backwpup-restore-dashboard" class="button button-primary" href="<?php echo esc_url( admin_url() ); ?>">
+					<?php esc_html_e( 'Go to Dashboard', 'backwpup' ); ?>
+				</a>
+			</p>
 		</div>
 	</div>
+	<script>
+		// Reload into the restored site: the restore page was loaded before the database was replaced.
+		setTimeout( function () {
+			window.location.assign( document.getElementById( 'backwpup-restore-dashboard' ).href );
+		}, 5000 );
+	</script>
 <?php } ?>
 
 <?php if ( $bind->errors ) { ?>

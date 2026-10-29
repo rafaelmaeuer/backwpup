@@ -11,7 +11,6 @@ use Inpsyde\BackWPup\Pro\Settings;
 use Inpsyde\BackWPup\Pro\Settings\AjaxEncryptionKeyHandler;
 use Inpsyde\BackWPup\Notice\EvaluateNotice;
 use Inpsyde\BackWPup\Notice\EasycronUpdateNotice;
-use Inpsyde\BackWPup\Notice\RestoreFeatureInformationNotice;
 
 /**
  * BackWPup_Admin.
@@ -261,12 +260,6 @@ final class BackWPup_Admin
 		true
 		);
 		$easycron_update_notice->init( EasycronUpdateNotice::TYPE_ADMIN );
-
-		$restore_feature_information_notice = new RestoreFeatureInformationNotice(
-		new NoticeView( RestoreFeatureInformationNotice::ID ),
-		true
-		);
-		$restore_feature_information_notice->init( RestoreFeatureInformationNotice::TYPE_ADMIN );
 	}
 
     /**
