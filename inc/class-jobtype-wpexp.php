@@ -314,12 +314,19 @@ class BackWPup_JobType_WPEXP extends BackWPup_JobTypes {
 		if ( 'terms' === $job_object->steps_data[ $job_object->step_working ]['substep'] ) {
 			if ( 'all' === $job_object->job['wpexportcontent'] ) {
 				$custom_taxonomies = get_taxonomies( [ '_builtin' => false ] );
-				$custom_terms      = (array) get_terms(
-					[
-						'taxonomy'   => $custom_taxonomies,
-						'hide_empty' => false,
-					]
-				);
+				$custom_terms      = [];
+				// An empty taxonomy list makes get_terms() return the terms of all taxonomies,
+				// which would export categories and tags a second time.
+				if ( ! empty( $custom_taxonomies ) ) {
+					$custom_terms = get_terms(
+						[
+							'taxonomy'   => array_values( $custom_taxonomies ),
+							'hide_empty' => false,
+						]
+					);
+					// Casting a WP_Error to an array would turn its properties into "terms".
+					$custom_terms = is_array( $custom_terms ) ? $custom_terms : [];
+				}
 
 				// Put terms in order with no child going before its parent.
 				$terms     = $this->order_terms_by_parent( $custom_terms );
