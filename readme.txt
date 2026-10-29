@@ -7,7 +7,7 @@ Tags: backup, restore, cloud backup, database backup, wordpress backup
 Requires at least: 4.9
 Tested up to: 6.6
 Requires PHP: 7.4
-Stable tag: 4.7.8.1
+Stable tag: 4.7.8.2
 License: GPLv2+
 
 Create a complete WordPress backup easily. Schedule automatic backups, store securely, and restore effortlessly with the best WordPress backup plugin!
@@ -206,6 +206,18 @@ Yes. You need to have writing access to the wp-config.php file (usually residing
 * %s = Two digit representation of the second
 
 == Changelog ==
+
+= 4.7.8.2 =
+Release date: oct 29, 2026
+
+* Fixed : Restore stopped after the file step: the restored wp-config.php replaced the site's authentication keys and logged the user out, so the database was not restored. The current keys and salts are now kept.
+* Fixed : A restore keeps running when the browser leaves the restore page; no notices are shown on the restore page
+* Fixed : An error is shown when a restore step cannot be started instead of returning to the Start button
+* Changed : After a successful restore the dashboard is opened automatically
+* Fixed : Database restore failed with "MySQL server has gone away" when a backup contained very large rows (e.g. security plugin checksums). Queries larger than the server's max_allowed_packet are now split, and the restore stops with a clear message if the connection is lost
+* Fixed : New database backups put large rows into their own query so they stay below the server's packet limit
+* Fixed : A restore no longer replaces the running BackWPup plugin with the copy from the backup, so the database step runs the current code
+* Removed : The "restore is now available in the free version" notice
 
 = 4.7.8.1 =
 Release date: oct 28, 2026
