@@ -7,7 +7,7 @@ Tags: backup, restore, cloud backup, database backup, wordpress backup
 Requires at least: 4.9
 Tested up to: 6.6
 Requires PHP: 7.4
-Stable tag: 4.7.8.2
+Stable tag: 4.7.8.3
 License: GPLv2+
 
 Create a complete WordPress backup easily. Schedule automatic backups, store securely, and restore effortlessly with the best WordPress backup plugin!
@@ -207,6 +207,11 @@ Yes. You need to have writing access to the wp-config.php file (usually residing
 
 == Changelog ==
 
+= 4.7.8.3 =
+Release date: oct 29, 2026
+
+* Security : The email destination's sendmail command only accepts the absolute path of a known mail program (sendmail, exim, msmtp, ...) with safe options. Other programs and options like -X or -C are rejected.
+
 = 4.7.8.2 =
 Release date: oct 29, 2026
 
@@ -229,7 +234,6 @@ Release date: oct 28, 2026
 = 4.7.8 =
 Release date: oct 23, 2026
 
-Maintenance release of the 4.x line (classic UI) with engine and security fixes backported from BackWPup 5.0 - 5.7.8. Version 4.x.y mirrors the 5.x.y release it is synced with.
 * Security : Scheduled jobs can no longer be started by unauthenticated requests; external start links use a per-job token
 * Security : Prevent path traversal when extracting ZIP archives during restore
 * Security : Restore working directories use unpredictable names and abandoned restore files are cleaned up

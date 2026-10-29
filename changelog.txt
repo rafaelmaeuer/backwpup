@@ -1,6 +1,13 @@
 == Changelog ==
+= 4.7.8.3 =
+Release date: oct 29, 2026
+Security release: hardens the sendmail command of the email destination.
+
+* Security : The email destination's sendmail command only accepts the absolute path of a known mail program (sendmail, exim, msmtp, ...) with safe options. Other programs and options like -X or -C are rejected.
+
 = 4.7.8.2 =
 Release date: oct 29, 2026
+Restore fixes: complete restores with large databases now finish reliably, and the restore page leads back to the dashboard.
 
 * Fixed : Restore stopped after the file step: the restored wp-config.php replaced the site's authentication keys and logged the user out, so the database was not restored. The current keys and salts are now kept.
 * Fixed : A restore keeps running when the browser leaves the restore page; no notices are shown on the restore page
@@ -13,6 +20,7 @@ Release date: oct 29, 2026
 
 = 4.7.8.1 =
 Release date: oct 28, 2026
+Download fixes: backup downloads are no longer truncated or incomplete.
 
 * Fixed : Backup downloads could be truncated (e.g. ~2 MB) or incomplete because the browser restarted the download copy while the file was being downloaded
 * Fixed : Downloads are copied to a temporary .part file and only served once complete
