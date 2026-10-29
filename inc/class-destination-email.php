@@ -312,13 +312,8 @@ class BackWPup_Destination_Email extends BackWPup_Destinations
                     $transport->setEncryption('tls');
                 }
             } elseif ($emailmethod == 'sendmail') {
-                // Verify command
-                // Note: the hyphen must be last in the character class, otherwise "9-_" is a range that
-                // allows shell meta characters like ";", "<" and ">".
-                if (preg_match('/^[a-zA-Z0-9_.\/\\\'" -]+$/', $emailsendmail) === 0) {
-                    // Never execute a sendmail command containing unexpected characters.
-                    throw new Exception(__('The sendmail command has invalid characters.', 'backwpup'));
-                }
+                // The command is run through a shell: only a known mail program with known options.
+                self::assert_sendmail_command((string) $emailsendmail);
                 $transport = Swift_SendmailTransport::newInstance($emailsendmail);
             } else {
                 $job_object->need_free_memory($job_object->backup_filesize * 8);
@@ -438,10 +433,8 @@ class BackWPup_Destination_Email extends BackWPup_Destinations
                     $transport->setEncryption('tls');
                 }
             } elseif ($emailmethod == 'sendmail') {
-                // Never execute a sendmail command containing unexpected characters.
-                if (preg_match('/^[a-zA-Z0-9_.\/\\\'" -]+$/', (string) $emailsendmail) === 0) {
-                    throw new Exception(__('The sendmail command has invalid characters.', 'backwpup'));
-                }
+                // The command is run through a shell: only a known mail program with known options.
+                self::assert_sendmail_command((string) $emailsendmail);
                 $transport = Swift_SendmailTransport::newInstance($emailsendmail);
             } else {
                 $transport = Swift_MailTransport::newInstance();
@@ -479,6 +472,57 @@ class BackWPup_Destination_Email extends BackWPup_Destinations
     /**
      * Get an array of emails from comma-separated string.
      */
+    /**
+     * Ensures the sendmail command only runs a known mail program with harmless options.
+     *
+     * The command is executed through a shell. Checking for shell characters alone still allows
+     * running any program (e.g. wget, sh) or dangerous sendmail options like -X (log to file) or
+     * -C (alternative config), so only an allow list is accepted.
+     *
+     * @throws Exception if the command is not allowed
+     */
+    public static function assert_sendmail_command(string $command): void
+    {
+        $mailers = ['sendmail', 'exim', 'exim4', 'msmtp', 'ssmtp', 'esmtp', 'mini_sendmail', 'nullmailer-inject'];
+        $flags = ['-t', '-i', '-oi', '-bs', '-odi', '-odb', '-odq', '--read-envelope-from', '--read-recipients'];
+
+        $parts = preg_split('/ +/', trim($command));
+        $program = (string) array_shift($parts);
+
+        $allowed = preg_match('~^(/[A-Za-z0-9_.-]+)+$~', $program) === 1
+            && strpos($program, '/..') === false
+            && in_array(basename($program), $mailers, true);
+
+        while ($allowed && $parts) {
+            $part = array_shift($parts);
+            if (in_array($part, $flags, true)) {
+                continue;
+            }
+            // Envelope sender: -fuser@example.com or -f user@example.com.
+            if (preg_match('/^-f([A-Za-z0-9_.+@-]*)$/', $part, $matches) === 1) {
+                $sender = $matches[1] !== '' ? $matches[1] : (string) array_shift($parts);
+                $allowed = is_email($sender) !== false;
+                continue;
+            }
+            // msmtp account: -a name.
+            if ($part === '-a') {
+                $allowed = preg_match('/^[A-Za-z0-9_.-]+$/', (string) array_shift($parts)) === 1;
+                continue;
+            }
+            $allowed = false;
+        }
+
+        if (!$allowed) {
+            throw new Exception(
+                sprintf(
+                    /* translators: %s: list of allowed mail programs. */
+                    __('The sendmail command is not allowed. Use the absolute path of a mail program (%s) with the options -t, -i, -oi, -bs or -f sender@example.com.', 'backwpup'),
+                    implode(', ', $mailers)
+                )
+            );
+        }
+    }
+
     private function get_email_array(string $emailString): array
     {
         $emails = explode(',', sanitize_text_field($emailString));
