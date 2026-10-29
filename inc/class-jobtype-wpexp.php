@@ -641,7 +641,10 @@ class BackWPup_JobType_WPEXP extends BackWPup_JobTypes {
 		}
 
 		if ( ! $is_valid_utf8 ) {
-			$str = utf8_encode( $str );
+			// utf8_encode() is deprecated as of PHP 8.2.
+			$str = function_exists( 'mb_convert_encoding' )
+				? (string) mb_convert_encoding( $str, 'UTF-8', 'ISO-8859-1' )
+				: utf8_encode( $str ); // phpcs:ignore PHPCompatibility.FunctionUse.RemovedFunctions.utf8_encodeDeprecated
 		}
 
 		// Not allowed UTF-8 chars in XML.
