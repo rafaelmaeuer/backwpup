@@ -405,6 +405,8 @@ class BackWPup_JobType_WPEXP extends BackWPup_JobTypes {
 					// Begin loop.
 					/* @var WP_Post $post_item */
 					foreach ( $posts as $post_item ) {
+						// setup_postdata() doesn't set the global post, which get_post() relies on.
+						$GLOBALS['post'] = $post_item; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
 						setup_postdata( $post_item );
 						$is_sticky = is_sticky( $post_item->ID ) ? 1 : 0;
 
@@ -432,7 +434,7 @@ class BackWPup_JobType_WPEXP extends BackWPup_JobTypes {
 						if ( 'attachment' === $post_item->post_type ) {
 							$wxr_post .= "\t\t<wp:attachment_url>" . wp_get_attachment_url( $post_item->ID ) . "</wp:attachment_url>\n";
 						}
-						$wxr_post .= $this->wxr_post_taxonomy();
+						$wxr_post .= $this->wxr_post_taxonomy( $post_item );
 
 						$postmeta_key = 'postmeta_' . $post_item->ID;
 						$postmeta     = wp_cache_get( $postmeta_key, $cache_group );
@@ -837,9 +839,13 @@ class BackWPup_JobType_WPEXP extends BackWPup_JobTypes {
 	 * Output list of taxonomy terms, in XML tag format, associated with a post.
 	 *
 	 * @since WordPress 2.3.0
+	 *
+	 * @param WP_Post|object|null $post_item The post to export the terms of, defaults to the global post.
+	 *
+	 * @return string
 	 */
-	private function wxr_post_taxonomy() {
-		$post = get_post();
+	private function wxr_post_taxonomy( $post_item = null ) {
+		$post = get_post( $post_item );
 
 		if ( ! $post instanceof WP_Post ) {
 			return '';
