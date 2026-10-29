@@ -233,6 +233,22 @@ final class RestoreFiles implements ConfigRewriterInterface, RestoreInterface
     }
 
     /**
+     * Whether the given destination directory is the directory of the plugin running the restore.
+     */
+    private function is_running_plugin_dir(string $dir): bool
+    {
+        $plugin_dir = class_exists(\BackWPup::class, false)
+            ? (string) \BackWPup::get_plugin_data('plugindir')
+            // This file is in <plugin>/vendor/inpsyde/backwpup-restore-shared/src/Api/Module/Restore.
+            : \dirname(__DIR__, 7);
+
+        $plugin_dir = realpath($plugin_dir);
+        $dir = realpath($dir);
+
+        return $plugin_dir !== false && $dir !== false && $plugin_dir === $dir;
+    }
+
+    /**
      * Replaces the authentication keys and salts in the given wp-config.php content
      * with the values of the running site.
      */
@@ -452,6 +468,18 @@ final class RestoreFiles implements ConfigRewriterInterface, RestoreInterface
                     break;
 
                 case 'dir':
+                    // Never replace the plugin that is running the restore: the following steps
+                    // (database restore, cleanup) would run the backup's, possibly older, code.
+                    if ($this->is_running_plugin_dir($this->append_path($dest, $file))) {
+                        $this->logger->info(
+                            sprintf(
+                                __('Skipping %1$s: the plugin running the restore is kept.', 'backwpup'),
+                                $src_file
+                            )
+                        );
+                        break;
+                    }
+
                     // 2.b. Put subdirs in Registry::restore_list for next steps
                     $folder = substr($src_file, $this->current_archive_extracted_path_length);
                     $this->registry->add_to_restore_list($folder);
