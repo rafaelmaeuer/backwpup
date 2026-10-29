@@ -266,21 +266,13 @@ class BackWPup_JobType_WPEXP extends BackWPup_JobTypes {
 
 		if ( 'cats' === $job_object->steps_data[ $job_object->step_working ]['substep'] ) {
 			if ( 'all' === $job_object->job['wpexportcontent'] ) {
-				$cats       = [];
 				$categories = (array) get_categories( [ 'get' => 'all' ] );
 				// Put categories in order with no child going before its parent.
-				while ( ! empty( $categories ) ) {
-					$cat = array_shift( $categories );
-					if ( 0 === (int) $cat->parent || isset( $cats[ $cat->parent ] ) ) {
-						$cats[ $cat->term_id ] = $cat;
-					} else {
-						$categories[] = $cat;
-					}
-				}
+				$cats     = $this->order_terms_by_parent( $categories );
 				$cats_xml = '';
 
 				foreach ( $cats as $c ) {
-					$parent_slug = $c->parent ? $cats[ $c->parent ]->slug : '';
+					$parent_slug = $c->parent && isset( $cats[ $c->parent ] ) ? $cats[ $c->parent ]->slug : '';
 					$cats_xml   .= "\t<wp:category><wp:term_id>" . $c->term_id . '</wp:term_id><wp:category_nicename>' . $c->slug . '</wp:category_nicename><wp:category_parent>' . $parent_slug . '</wp:category_parent>' . $this->wxr_cat_name( $c ) . $this->wxr_category_description( $c ) . "</wp:category>\n";
 				}
 				$written = file_put_contents( $job_object->steps_data[ $job_object->step_working ]['wpexportfile'], $cats_xml, FILE_APPEND ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
@@ -321,7 +313,6 @@ class BackWPup_JobType_WPEXP extends BackWPup_JobTypes {
 
 		if ( 'terms' === $job_object->steps_data[ $job_object->step_working ]['substep'] ) {
 			if ( 'all' === $job_object->job['wpexportcontent'] ) {
-				$terms             = [];
 				$custom_taxonomies = get_taxonomies( [ '_builtin' => false ] );
 				$custom_terms      = (array) get_terms(
 					[
@@ -331,18 +322,11 @@ class BackWPup_JobType_WPEXP extends BackWPup_JobTypes {
 				);
 
 				// Put terms in order with no child going before its parent.
-				while ( ! empty( $custom_terms ) ) {
-					$t = array_shift( $custom_terms );
-					if ( 0 === (int) $t->parent || isset( $terms[ $t->parent ] ) ) {
-						$terms[ $t->term_id ] = $t;
-					} else {
-						$custom_terms[] = $t;
-					}
-				}
+				$terms     = $this->order_terms_by_parent( $custom_terms );
 				$terms_xml = '';
 
 				foreach ( $terms as $t ) {
-					$parent_slug = $t->parent ? $terms[ $t->parent ]->slug : '';
+					$parent_slug = $t->parent && isset( $terms[ $t->parent ] ) ? $terms[ $t->parent ]->slug : '';
 					$terms_xml  .= "\t<wp:term><wp:term_id>" . $t->term_id . '</wp:term_id><wp:term_taxonomy>' . $t->taxonomy . '</wp:term_taxonomy><wp:term_slug>' . $t->slug . '</wp:term_slug><wp:term_parent>' . $parent_slug . '</wp:term_parent>' . $this->wxr_term_name( $t ) . $this->wxr_term_description( $t ) . "</wp:term>\n";
 				}
 				$written = file_put_contents( $job_object->steps_data[ $job_object->step_working ]['wpexportfile'], $terms_xml, FILE_APPEND ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
@@ -867,6 +851,47 @@ class BackWPup_JobType_WPEXP extends BackWPup_JobTypes {
 		}
 
 		return $wxr_post_tags;
+	}
+
+	/**
+	 * Put terms in order with no child going before its parent.
+	 *
+	 * Terms whose parent is not in the list (orphans) are treated as top level terms and
+	 * parent cycles are broken, otherwise the ordering loop would never end.
+	 *
+	 * @param array $terms List of term objects.
+	 *
+	 * @return array Ordered terms keyed by term ID.
+	 */
+	private function order_terms_by_parent( array $terms ) {
+		$ordered   = [];
+		$available = [];
+
+		foreach ( $terms as $term ) {
+			if ( is_object( $term ) && isset( $term->term_id ) ) {
+				$available[ $term->term_id ] = true;
+			}
+		}
+
+		$requeued = 0;
+
+		while ( ! empty( $terms ) ) {
+			$term = array_shift( $terms );
+			if ( ! is_object( $term ) || ! isset( $term->term_id ) ) {
+				continue;
+			}
+			$parent = (int) $term->parent;
+			// The requeue counter breaks parent cycles: no remaining term could be placed.
+			if ( 0 === $parent || isset( $ordered[ $parent ] ) || ! isset( $available[ $parent ] ) || $requeued > count( $terms ) ) {
+				$ordered[ $term->term_id ] = $term;
+				$requeued                  = 0;
+			} else {
+				$terms[] = $term;
+				++$requeued;
+			}
+		}
+
+		return $ordered;
 	}
 
 	/**
